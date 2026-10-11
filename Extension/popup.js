@@ -39,6 +39,7 @@ async function refresh() {
   if (st && st.settings) {
     $('intercept').checked = !!st.settings.intercept;
     $('sniff').checked = !!st.settings.sniff;
+    $('overlay').checked = st.settings.overlay !== false;
     $('port').value = st.settings.port;
     $('minSize').value = st.settings.minSizeMB || 0;
   }
@@ -156,6 +157,7 @@ $('launch').onclick = async () => {
 };
 $('intercept').onchange = (e) => send({ type: 'setSettings', settings: { intercept: e.target.checked } });
 $('sniff').onchange = (e) => send({ type: 'setSettings', settings: { sniff: e.target.checked } });
+$('overlay').onchange = (e) => send({ type: 'setSettings', settings: { overlay: e.target.checked } });
 $('port').onchange = (e) => send({ type: 'setSettings', settings: { port: parseInt(e.target.value, 10) || 48213 } }).then(refresh);
 $('minSize').onchange = (e) => send({ type: 'setSettings', settings: { minSizeMB: parseInt(e.target.value, 10) || 0 } });
 

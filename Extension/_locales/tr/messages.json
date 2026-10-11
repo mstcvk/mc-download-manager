@@ -57,6 +57,9 @@
   "popupSniff": {
     "message": "Sayfadaki videoları yakala"
   },
+  "popupOverlay": {
+    "message": "Videolarda indirme butonu göster"
+  },
   "popupPageVideo": {
     "message": "Bu sayfadaki videoyu indir (yt-dlp)"
   },
@@ -140,5 +143,20 @@
   },
   "popupRemove": {
     "message": "Listeden kaldır"
+  },
+  "overlayDownload": {
+    "message": "Bu videoyu indir"
+  },
+  "overlayHide": {
+    "message": "Bu video için gizle"
+  },
+  "overlaySending": {
+    "message": "Gönderiliyor…"
+  },
+  "overlaySent": {
+    "message": "MC Download Manager'a gönderildi ✓"
+  },
+  "overlayFailed": {
+    "message": "Uygulama çalışmıyor"
   }
 }

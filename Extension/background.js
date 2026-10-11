@@ -5,7 +5,7 @@ const api = typeof browser !== 'undefined' ? browser : chrome;
 const t = (k, subs) => { try { return api.i18n.getMessage(k, subs) || k; } catch { return k; } };
 const IS_SAFARI = typeof browser !== 'undefined' && !!browser.runtime.sendNativeMessage && !chrome.downloads?.onDeterminingFilename;
 
-const DEFAULTS = { port: 48213, intercept: true, minSizeMB: 0, sniff: true };
+const DEFAULTS = { port: 48213, intercept: true, minSizeMB: 0, sniff: true, overlay: true };
 const BROWSER = IS_SAFARI ? 'safari' : (navigator.brave ? 'brave' : (/Edg\//.test(navigator.userAgent) ? 'edge' : 'chrome'));
 
 const MEDIA_EXT = /\.(mp4|m4v|webm|mkv|mov|avi|flv|mp3|m4a|aac|ogg|opus|wav|flac)(\?|#|$)/i;

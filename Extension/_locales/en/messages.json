@@ -57,6 +57,9 @@
   "popupSniff": {
     "message": "Capture videos on pages"
   },
+  "popupOverlay": {
+    "message": "Show a download button on videos"
+  },
   "popupPageVideo": {
     "message": "Download video from this page (yt-dlp)"
   },
@@ -140,5 +143,20 @@
   },
   "popupRemove": {
     "message": "Remove from list"
+  },
+  "overlayDownload": {
+    "message": "Download this video"
+  },
+  "overlayHide": {
+    "message": "Hide for this video"
+  },
+  "overlaySending": {
+    "message": "Sending…"
+  },
+  "overlaySent": {
+    "message": "Sent to MC Download Manager ✓"
+  },
+  "overlayFailed": {
+    "message": "App not running"
   }
 }
