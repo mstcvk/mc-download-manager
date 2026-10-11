@@ -5,3 +5,6 @@ DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 .DS_Store
 *.dmg
+Windows/*/bin/
+Windows/*/obj/
+Windows/dist/
