@@ -1,0 +1,149 @@
+<Window x:Class="MCDM.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:MCDM"
+        Title="MC Download Manager" Width="1080" Height="640" MinWidth="860" MinHeight="480"
+        Icon="pack://application:,,,/MCDownloadManager;component/Resources/app.ico"
+        WindowStartupLocation="CenterScreen" AllowDrop="True">
+    <DockPanel>
+        <!-- Toolbar -->
+        <DockPanel DockPanel.Dock="Top" Margin="12,10,12,8" LastChildFill="False">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button x:Name="AddButton" Click="Add_Click" ToolTip="{l:T 'Add a download by URL (Ctrl+N)'}" Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE71B;" Margin="0,0,6,0"/>
+                        <TextBlock Text="{l:T 'Add URL'}"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="StartQueue_Click" ToolTip="{l:T 'Resume paused and failed downloads'}" Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" Margin="0,0,6,0"/>
+                        <TextBlock Text="{l:T 'Start Queue'}"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="StopAll_Click" ToolTip="{l:T 'Pause all downloads'}" Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" Margin="0,0,6,0"/>
+                        <TextBlock Text="{l:T 'Stop All'}"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="ClearFinished_Click" ToolTip="{l:T 'Remove completed and cancelled items from the list'}" Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE74D;" Margin="0,0,6,0"/>
+                        <TextBlock Text="{l:T 'Clear Finished'}"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="Settings_Click" ToolTip="{l:T 'Settings'}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE713;" Margin="0,0,6,0"/>
+                        <TextBlock Text="{l:T 'Settings'}"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <TextBox x:Name="SearchBox" DockPanel.Dock="Right" Width="240" TextChanged="Search_Changed"
+                     ToolTip="{l:T 'Search in the list'}"/>
+        </DockPanel>
+
+        <!-- Status bar -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="12,6,12,8">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xEA37;" FontSize="12" Margin="0,0,4,0" Opacity="0.7"/>
+                <TextBlock x:Name="UnfinishedText" Style="{StaticResource Caption}" ToolTip="{l:T 'Unfinished downloads'}" Margin="0,0,16,0"/>
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE896;" FontSize="12" Margin="0,0,4,0" Opacity="0.7"/>
+                <TextBlock x:Name="SpeedText" Style="{StaticResource Caption}" ToolTip="{l:T 'Total download speed'}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="BridgeDot" Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="BridgeText" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DockPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210" MinWidth="170"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar -->
+            <ListBox x:Name="Sidebar" Grid.Column="0" Margin="8,0,4,0" SelectionChanged="Sidebar_Changed" BorderThickness="0" Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel Margin="{Binding Indent}">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Count}" Opacity="0.6" Margin="8,0,0,0"/>
+                            <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" Margin="0,0,10,0"/>
+                            <TextBlock Text="{Binding Label}" FontWeight="{Binding Weight}"/>
+                        </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Download table -->
+            <DataGrid x:Name="Table" Grid.Column="1" Margin="4,0,8,0" AutoGenerateColumns="False" IsReadOnly="True"
+                      SelectionMode="Extended" HeadersVisibility="Column" GridLinesVisibility="None"
+                      CanUserReorderColumns="True" CanUserResizeRows="False" RowHeaderWidth="0"
+                      MouseDoubleClick="Grid_DoubleClick" ContextMenuOpening="Grid_ContextMenuOpening" PreviewKeyDown="Grid_KeyDown">
+                <DataGrid.ContextMenu>
+                    <ContextMenu/>
+                </DataGrid.ContextMenu>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="{l:T 'Name'}" Width="2*" MinWidth="200" SortMemberPath="FileName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="4,4">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="{Binding Glyph}" FontSize="18" Width="26" Opacity="0.7"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding CategoryLabel}" Style="{StaticResource Caption}"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="{l:T 'Size'}" Binding="{Binding SizeText}" SortMemberPath="TotalBytes" Width="95" ElementStyle="{StaticResource CellText}"/>
+                    <DataGridTemplateColumn Header="{l:T 'Status'}" Width="190" SortMemberPath="State">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,4" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource Bad}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <l:SegmentBar Item="{Binding}" Height="5" MaxWidth="170" HorizontalAlignment="Stretch" Margin="0,3,0,0">
+                                        <l:SegmentBar.Style>
+                                            <Style TargetType="l:SegmentBar">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowsBar}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </l:SegmentBar.Style>
+                                    </l:SegmentBar>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="{l:T 'Speed'}" Binding="{Binding SpeedText}" SortMemberPath="Speed" Width="95" ElementStyle="{StaticResource CellText}"/>
+                    <DataGridTextColumn Header="{l:T 'Time Left'}" Binding="{Binding EtaText}" Width="95" CanUserSort="False" ElementStyle="{StaticResource CellText}"/>
+                    <DataGridTextColumn Header="{l:T 'Date Added'}" Binding="{Binding AddedText}" SortMemberPath="CreatedAt" Width="130" ElementStyle="{StaticResource CellText}"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Empty state -->
+            <StackPanel x:Name="EmptyState" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False">
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xE896;" FontSize="56" Opacity="0.5" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="EmptyTitle" FontSize="20" HorizontalAlignment="Center" Margin="0,12,0,6"/>
+                <TextBlock x:Name="EmptyHint" Style="{StaticResource Caption}" TextAlignment="Center"
+                           Text="{l:T 'Download a file from your browser, drop a link here,&#x0a;or press Ctrl+N to enter a URL.'}"/>
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</Window>

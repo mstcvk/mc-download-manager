@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MC Download Manager</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="title">
+      <img src="icons/icon48.png" alt="" width="20" height="20">
+      <span>MC Download Manager</span>
+    </div>
+    <div class="status"><span id="dot" class="dot"></span><span id="statusText" data-i18n="popupConnecting">Connecting…</span></div>
+  </header>
+
+  <div id="offline" class="box hidden">
+    <span data-i18n="popupOfflineBox">The app is not running. Open MC Download Manager.</span>
+    <button id="launch" class="hidden" data-i18n="popupLaunch">Open App</button>
+  </div>
+
+  <section class="controls">
+    <label class="toggle"><input type="checkbox" id="intercept"> <span data-i18n="popupIntercept">Send downloads to the app</span></label>
+    <label class="toggle"><input type="checkbox" id="sniff"> <span data-i18n="popupSniff">Capture videos on pages</span></label>
+    <label class="toggle"><input type="checkbox" id="autoLaunch"> <span data-i18n="popupAutoLaunch">Open the app when a download arrives</span></label>
+  </section>
+
+  <section>
+    <button id="pageVideo" class="primary" data-i18n="popupPageVideo">Download video from this page (yt-dlp)</button>
+    <button id="pageLink" data-i18n="popupPageLink">Download page URL as a file</button>
+  </section>
+
+  <section>
+    <h3><span data-i18n="popupDownloadsTitle">Downloads</span></h3>
+    <ul id="dl"></ul>
+    <p id="noDl" class="muted" data-i18n="popupNoDownloads">No active downloads. Started downloads show their progress here and on the toolbar badge.</p>
+  </section>
+
+  <section>
+    <h3><span data-i18n="popupMediaTitle">Captured media</span> <span id="count"></span></h3>
+    <ul id="media"></ul>
+    <p id="noMedia" class="muted" data-i18n="popupNoMedia">No media captured in this tab yet. Start playing a video and it will appear here.</p>
+  </section>
+
+  <details>
+    <summary data-i18n="popupSettings">Settings</summary>
+    <label><span data-i18n="popupPort">App port</span> <input type="number" id="port" min="1024" max="65535"></label>
+    <label><span data-i18n="popupMinSize">Only capture downloads larger than (MB, 0 = all)</span> <input type="number" id="minSize" min="0"></label>
+  </details>
+  <script src="popup.js"></script>
+</body>
+</html>

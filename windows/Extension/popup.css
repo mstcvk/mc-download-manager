@@ -1,0 +1,35 @@
+:root { color-scheme: light dark; --accent: #2f6feb; --bg: #fff; --fg: #1d1d1f; --muted: #777; --line: #e3e3e6; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1e1e20; --fg: #f2f2f2; --muted: #9a9a9a; --line: #3a3a3d; } }
+* { box-sizing: border-box; }
+body { margin: 0; width: 360px; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #c33; }
+.dot.on { background: #2ebd59; }
+section, details { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+section h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+button { display: block; width: 100%; margin: 4px 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--fg); cursor: pointer; font: inherit; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.small { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; }
+.toggle { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.box { margin: 10px 12px; padding: 10px; border-radius: 8px; background: rgba(220, 60, 60, .12); color: #c33; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); margin: 4px 0; }
+ul { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; }
+li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+li .info { flex: 1; min-width: 0; }
+li .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+li .meta { color: var(--muted); font-size: 11px; }
+details label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0; }
+details input { width: 90px; }
+summary { cursor: pointer; color: var(--muted); }
+.bar { height: 4px; border-radius: 2px; background: var(--line); margin: 4px 0 2px; overflow: hidden; }
+.bar .fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.bar.indeterminate .fill { width: 30%; animation: slide 1.2s infinite linear; }
+.bar.done .fill { background: #2ebd59; }
+.bar.failed .fill { background: #c33; }
+@keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+li .actions { display: flex; gap: 4px; }
+button.icon { width: 28px; margin: 0; padding: 3px 0; font-size: 12px; line-height: 1.2; }

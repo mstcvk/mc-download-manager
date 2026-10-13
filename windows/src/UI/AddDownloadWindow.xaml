@@ -1,0 +1,23 @@
+<Window x:Class="MCDM.AddDownloadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:MCDM"
+        Title="{l:T 'New Download'}" Width="560" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <StackPanel Margin="20">
+        <TextBlock Style="{StaticResource Title}" Text="{l:T 'New Download'}"/>
+        <TextBlock Style="{StaticResource Caption}" Text="{l:T 'One URL per line.'}" Margin="0,4,0,8"/>
+        <TextBox x:Name="UrlBox" Height="120" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"
+                 VerticalScrollBarVisibility="Auto" TextChanged="UrlBox_Changed"/>
+        <CheckBox x:Name="VideoBox" Content="{l:T 'Download video from page (yt-dlp)'}" Margin="0,12,0,0" Click="VideoBox_Click"/>
+        <StackPanel x:Name="SegmentsRow" Orientation="Horizontal" Margin="0,10,0,0">
+            <TextBlock Text="{l:T 'Connections'}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <ComboBox x:Name="SegmentsBox" Width="200"/>
+        </StackPanel>
+        <DockPanel Margin="0,18,0,0" LastChildFill="False">
+            <Button Content="{l:T 'Paste from Clipboard'}" Click="Paste_Click"/>
+            <Button x:Name="DownloadButton" DockPanel.Dock="Right" Content="{l:T 'Download'}" IsDefault="True" Click="Download_Click" Margin="8,0,0,0" IsEnabled="False"/>
+            <Button DockPanel.Dock="Right" Content="{l:T 'Cancel'}" IsCancel="True"/>
+        </DockPanel>
+    </StackPanel>
+</Window>

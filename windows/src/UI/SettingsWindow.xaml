@@ -1,0 +1,166 @@
+<Window x:Class="MCDM.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:MCDM"
+        Title="{l:T 'Settings'}" Width="680" Height="640" MinWidth="560" MinHeight="420"
+        Icon="pack://application:,,,/MCDownloadManager;component/Resources/app.ico"
+        WindowStartupLocation="CenterScreen">
+    <TabControl x:Name="Tabs" Margin="8">
+        <!-- General -->
+        <TabItem Header="{l:T 'General'}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,4,16,16">
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Downloads'}"/>
+                    <TextBlock Text="{l:T 'Download folder'}"/>
+                    <DockPanel Margin="0,4,0,0">
+                        <Button DockPanel.Dock="Right" Content="{l:T 'Choose…'}" Click="ChooseFolder_Click" Margin="6,0,0,0"/>
+                        <Button DockPanel.Dock="Right" Content="{l:T 'Show'}" Click="ShowFolder_Click" Margin="6,0,0,0"/>
+                        <TextBox Text="{Binding DownloadDirectory}" IsReadOnly="True"/>
+                    </DockPanel>
+                    <CheckBox Margin="0,8,0,0" Content="{l:T 'Organize downloads into category subfolders (Video, Music, Archives…)'}" IsChecked="{Binding OrganizeByCategory}"/>
+
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Connections'}"/>
+                    <TextBlock x:Name="SegmentsLabel"/>
+                    <Slider Minimum="1" Maximum="16" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding SegmentCount}" ValueChanged="Slider_Changed"/>
+                    <TextBlock Style="{StaticResource Caption}" Text="{l:T 'Each file is downloaded with up to this many parallel connections (4–10 recommended).'}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock x:Name="ConcurrentLabel" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <ComboBox x:Name="ConcurrentBox" Width="70" SelectionChanged="Concurrent_Changed"/>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Behaviour'}"/>
+                    <CheckBox Content="{l:T 'Start new downloads immediately'}" IsChecked="{Binding AutoStart}" Margin="0,2"/>
+                    <CheckBox Content="{l:T 'Show a notification when a download completes'}" IsChecked="{Binding NotifyOnComplete}" Margin="0,2"/>
+                    <CheckBox Content="{l:T 'Open the download window when a download starts'}" IsChecked="{Binding ShowDetailOnStart}" Margin="0,2"/>
+                    <CheckBox Content="{l:T 'Close the download window automatically when completed'}" IsChecked="{Binding AutoCloseDetail}" Margin="0,2"/>
+                    <CheckBox Content="{l:T 'Watch the clipboard for links and ask to download them'}" IsChecked="{Binding WatchClipboard}" Margin="0,2"/>
+                    <TextBlock Style="{StaticResource Caption}" Text="{l:T 'Only links that point to a captured file type trigger the prompt. You can also paste a link into the main window with Ctrl+V.'}"/>
+
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Notification area'}"/>
+                    <CheckBox x:Name="LoginBox" Content="{l:T 'Open at login'}" Click="Login_Click" Margin="0,2"/>
+                    <TextBlock x:Name="LoginError" Foreground="{StaticResource Bad}" Style="{StaticResource Caption}" Visibility="Collapsed"/>
+                    <CheckBox Content="{l:T 'Start in the notification area without opening the main window'}" IsChecked="{Binding StartInTray}" Margin="0,2"/>
+                    <TextBlock Style="{StaticResource Caption}" Text="{l:T 'The app keeps running in the notification area so browser extensions can hand over downloads at any time. Closing the window does not quit; use Quit from the tray icon.'}"/>
+
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Updates'}"/>
+                    <CheckBox Content="{l:T 'Check for updates automatically (GitHub Releases)'}" IsChecked="{Binding CheckForUpdates}"/>
+                    <DockPanel Margin="0,8,0,0">
+                        <Button x:Name="CheckNowButton" DockPanel.Dock="Right" Click="CheckNow_Click" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock x:Name="CurrentVersionText"/>
+                            <TextBlock x:Name="LatestVersionText" Style="{StaticResource Caption}"/>
+                            <TextBlock x:Name="LastCheckText" Style="{StaticResource Caption}"/>
+                            <TextBlock x:Name="UpdateErrorText" Style="{StaticResource Caption}" Foreground="{StaticResource Bad}"/>
+                        </StackPanel>
+                    </DockPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- File types -->
+        <TabItem Header="{l:T 'File Types'}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,4,16,16">
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Captured file types'}"/>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,8" Text="{l:T 'Browser downloads and copied links with these extensions are handed to the app. Everything else stays in the browser.'}"/>
+                    <l:CaptureTypesEditor/>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Browser extensions -->
+        <TabItem Header="{l:T 'Browser Extensions'}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,4,16,16">
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Browser extensions'}"/>
+                    <TextBlock Style="{StaticResource Caption}" Text="{l:T 'The guided setup walks you through each installed browser one at a time: Google Chrome, Microsoft Edge and Brave (loaded from a folder), Firefox (signed add-on, one click).'}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,6">
+                        <Button Content="{l:T 'Open Setup Wizard…'}" Click="Wizard_Click" Margin="0,0,8,0"/>
+                        <Button Content="{l:T 'Refresh Status'}" Click="Refresh_Click"/>
+                    </StackPanel>
+                    <ItemsControl x:Name="BrowserList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,4">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Status}" Foreground="{Binding StatusBrush}"/>
+                                    <Image Source="{Binding Icon}" Width="20" Height="20" Margin="0,0,10,0"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <DockPanel Margin="0,8,0,0">
+                        <Button DockPanel.Dock="Right" Content="{l:T 'Show Plugin Folder'}" Click="PluginFolder_Click" Margin="8,0,0,0"/>
+                        <TextBlock x:Name="PluginRootText" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" TextWrapping="NoWrap"/>
+                    </DockPanel>
+
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Local bridge'}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox x:Name="PortBox" Width="90" LostFocus="Port_LostFocus" KeyDown="Port_KeyDown"/>
+                        <Ellipse x:Name="BridgeDot" Width="8" Height="8" Margin="10,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="BridgeText" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" Text="{l:T 'The extension uses port 48213 by default. If you change it here, enter the same port in the extension settings.'}"/>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Video -->
+        <TabItem Header="{l:T 'Video'}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,4,16,16">
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Site login (YouTube age verification, members-only videos)'}"/>
+                    <TextBlock x:Name="LoginIntro" Style="{StaticResource Caption}"/>
+                    <DockPanel Margin="0,8,0,0">
+                        <Button x:Name="ClearLoginButton" DockPanel.Dock="Right" Content="{l:T 'Clear'}" Click="ClearLogin_Click" Margin="8,0,0,0"/>
+                        <Button DockPanel.Dock="Right" Content="{l:T 'Sign in to YouTube…'}" Click="Login_Open_Click"/>
+                        <StackPanel>
+                            <TextBlock x:Name="LoginText"/>
+                            <TextBlock x:Name="LoginDetail" Style="{StaticResource Caption}"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <TextBlock Style="{StaticResource Section}" Text="yt-dlp"/>
+                    <DockPanel>
+                        <Button x:Name="YtDlpButton" DockPanel.Dock="Right" Click="YtDlp_Click" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock x:Name="YtDlpText"/>
+                            <TextBlock x:Name="YtDlpPathText" Style="{StaticResource Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <ProgressBar x:Name="InstallProgress" Height="4" Maximum="1" Margin="0,6" Visibility="Collapsed"/>
+                    <TextBlock x:Name="InstallMessage" Style="{StaticResource Caption}"/>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" Text="{l:T 'yt-dlp and ffmpeg are bundled with the app. “Update” downloads the latest yt-dlp release from GitHub into AppData and uses it instead of the bundled copy. Update when YouTube downloads stop working.'}"/>
+                    <DockPanel Margin="0,8,0,0">
+                        <Button DockPanel.Dock="Right" Content="{l:T 'Choose…'}" Click="ChooseYtDlp_Click" Margin="6,0,0,0"/>
+                        <TextBox x:Name="YtDlpCustom" Text="{Binding YtdlpPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="{l:T 'Custom yt-dlp path (empty = bundled)'}"/>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Caption}" Text="{l:T 'Custom yt-dlp path (empty = bundled)'}"/>
+                    <DockPanel Margin="0,10,0,0">
+                        <Button x:Name="DenoButton" DockPanel.Dock="Right" Click="Deno_Click" VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock x:Name="DenoText"/>
+                            <TextBlock x:Name="DenoPathText" Style="{StaticResource Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" Text="{l:T 'YouTube requires a JavaScript runtime to unlock video streams. deno is downloaded from its official GitHub releases (checksum verified) into AppData.'}"/>
+                    <TextBlock x:Name="FfmpegText" Style="{StaticResource Caption}" Margin="0,6,0,0"/>
+
+                    <TextBlock Style="{StaticResource Section}" Text="{l:T 'Default format'}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="{l:T 'Container'}" Width="160" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="ContainerBox" Width="280" SelectionChanged="Format_Changed"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="{l:T 'Maximum resolution'}" Width="160" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="HeightBox" Width="280" SelectionChanged="Format_Changed"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Caption}" Text="{l:T 'Default: MP4 at up to 1080p. Streams are merged with the bundled ffmpeg.'}"/>
+                    <TextBox Margin="0,8,0,0" Text="{Binding VideoFormat, UpdateSourceTrigger=PropertyChanged}" ToolTip="{l:T 'Custom yt-dlp -f expression (overrides the pickers)'}" TextChanged="FormatText_Changed"/>
+                    <TextBlock Style="{StaticResource Caption}" Text="{l:T 'Custom yt-dlp -f expression (overrides the pickers)'}"/>
+                    <TextBox x:Name="EffectiveArgs" Style="{StaticResource PathBox}" FontSize="11"/>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
+</Window>

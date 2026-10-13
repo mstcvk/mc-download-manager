@@ -1,0 +1,147 @@
+{
+  "extName": {
+    "message": "MC Download Manager"
+  },
+  "extDesc": {
+    "message": "Tarayıcı indirmelerini MC Download Manager uygulamasına yönlendirir ve sayfalardaki videoları yakalar."
+  },
+  "menuDownloadLink": {
+    "message": "MC Download Manager ile indir"
+  },
+  "menuPageVideo": {
+    "message": "Bu sayfadaki videoyu indir (yt-dlp)"
+  },
+  "notifSentTitle": {
+    "message": "İndirme uygulamaya gönderildi"
+  },
+  "notifVideoTitle": {
+    "message": "Video indirmesi başlatıldı"
+  },
+  "notifOfflineTitle": {
+    "message": "MC Download Manager çalışmıyor"
+  },
+  "notifOfflineBody": {
+    "message": "Uygulamayı açın ve tekrar deneyin."
+  },
+  "popupConnecting": {
+    "message": "Bağlanıyor…"
+  },
+  "popupConnected": {
+    "message": "Bağlı (v$VERSION$)",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupActive": {
+    "message": "$COUNT$ aktif",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupOffline": {
+    "message": "Uygulama kapalı"
+  },
+  "popupOfflineBox": {
+    "message": "Uygulama çalışmıyor. MC Download Manager uygulamasını açın."
+  },
+  "popupLaunch": {
+    "message": "Uygulamayı Aç"
+  },
+  "popupIntercept": {
+    "message": "İndirmeleri uygulamaya yönlendir"
+  },
+  "popupSniff": {
+    "message": "Sayfadaki videoları yakala"
+  },
+  "popupPageVideo": {
+    "message": "Bu sayfadaki videoyu indir (yt-dlp)"
+  },
+  "popupPageLink": {
+    "message": "Sayfa adresini dosya olarak indir"
+  },
+  "popupMediaTitle": {
+    "message": "Yakalanan medya"
+  },
+  "popupNoMedia": {
+    "message": "Bu sekmede medya yakalanmadı. Video oynatmayı başlatınca burada görünür."
+  },
+  "popupSettings": {
+    "message": "Ayarlar"
+  },
+  "popupPort": {
+    "message": "Uygulama portu"
+  },
+  "popupMinSize": {
+    "message": "Yalnızca şu boyuttan büyükleri yakala (MB, 0 = hepsi)"
+  },
+  "popupDownload": {
+    "message": "İndir"
+  },
+  "popupSent": {
+    "message": "Gönderildi"
+  },
+  "popupError": {
+    "message": "Hata"
+  },
+  "popupSending": {
+    "message": "Gönderiliyor…"
+  },
+  "popupStarted": {
+    "message": "yt-dlp başlatıldı ✓"
+  },
+  "popupFailed": {
+    "message": "Gönderilemedi"
+  },
+  "kindHls": {
+    "message": "HLS akışı"
+  },
+  "kindDash": {
+    "message": "DASH akışı"
+  },
+  "kindMedia": {
+    "message": "medya"
+  },
+  "popupDownloadsTitle": {
+    "message": "İndirmeler"
+  },
+  "popupNoDownloads": {
+    "message": "Aktif indirme yok. Başlatılan indirmeler ilerlemesini burada ve araç çubuğu rozetinde gösterir."
+  },
+  "stateQueued": {
+    "message": "Sırada"
+  },
+  "statePaused": {
+    "message": "Duraklatıldı"
+  },
+  "stateProbing": {
+    "message": "Başlatılıyor…"
+  },
+  "stateCompleted": {
+    "message": "Tamamlandı"
+  },
+  "stateFailed": {
+    "message": "Başarısız"
+  },
+  "stateCancelled": {
+    "message": "İptal edildi"
+  },
+  "popupPause": {
+    "message": "Duraklat"
+  },
+  "popupResume": {
+    "message": "Sürdür"
+  },
+  "popupCancel": {
+    "message": "İptal"
+  },
+  "popupRemove": {
+    "message": "Listeden kaldır"
+  },
+  "popupAutoLaunch": {
+    "message": "İndirme gelince uygulamayı aç"
+  }
+}
