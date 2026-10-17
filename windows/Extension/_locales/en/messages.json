@@ -1,0 +1,147 @@
+{
+  "extName": {
+    "message": "MC Download Manager"
+  },
+  "extDesc": {
+    "message": "Sends browser downloads to the MC Download Manager app and captures videos on pages."
+  },
+  "menuDownloadLink": {
+    "message": "Download with MC Download Manager"
+  },
+  "menuPageVideo": {
+    "message": "Download video from this page (yt-dlp)"
+  },
+  "notifSentTitle": {
+    "message": "Download sent to the app"
+  },
+  "notifVideoTitle": {
+    "message": "Video download started"
+  },
+  "notifOfflineTitle": {
+    "message": "MC Download Manager is not running"
+  },
+  "notifOfflineBody": {
+    "message": "Open the app and try again."
+  },
+  "popupConnecting": {
+    "message": "Connecting…"
+  },
+  "popupConnected": {
+    "message": "Connected (v$VERSION$)",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupActive": {
+    "message": "$COUNT$ active",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupOffline": {
+    "message": "App is not running"
+  },
+  "popupOfflineBox": {
+    "message": "The app is not running. Open MC Download Manager."
+  },
+  "popupLaunch": {
+    "message": "Open App"
+  },
+  "popupIntercept": {
+    "message": "Send downloads to the app"
+  },
+  "popupSniff": {
+    "message": "Capture videos on pages"
+  },
+  "popupPageVideo": {
+    "message": "Download video from this page (yt-dlp)"
+  },
+  "popupPageLink": {
+    "message": "Download page URL as a file"
+  },
+  "popupMediaTitle": {
+    "message": "Captured media"
+  },
+  "popupNoMedia": {
+    "message": "No media captured in this tab yet. Start playing a video and it will appear here."
+  },
+  "popupSettings": {
+    "message": "Settings"
+  },
+  "popupPort": {
+    "message": "App port"
+  },
+  "popupMinSize": {
+    "message": "Only capture downloads larger than (MB, 0 = all)"
+  },
+  "popupDownload": {
+    "message": "Download"
+  },
+  "popupSent": {
+    "message": "Sent"
+  },
+  "popupError": {
+    "message": "Error"
+  },
+  "popupSending": {
+    "message": "Sending…"
+  },
+  "popupStarted": {
+    "message": "yt-dlp started ✓"
+  },
+  "popupFailed": {
+    "message": "Could not send"
+  },
+  "kindHls": {
+    "message": "HLS stream"
+  },
+  "kindDash": {
+    "message": "DASH stream"
+  },
+  "kindMedia": {
+    "message": "media"
+  },
+  "popupDownloadsTitle": {
+    "message": "Downloads"
+  },
+  "popupNoDownloads": {
+    "message": "No active downloads. Started downloads show their progress here and on the toolbar badge."
+  },
+  "stateQueued": {
+    "message": "Queued"
+  },
+  "statePaused": {
+    "message": "Paused"
+  },
+  "stateProbing": {
+    "message": "Starting…"
+  },
+  "stateCompleted": {
+    "message": "Completed"
+  },
+  "stateFailed": {
+    "message": "Failed"
+  },
+  "stateCancelled": {
+    "message": "Cancelled"
+  },
+  "popupPause": {
+    "message": "Pause"
+  },
+  "popupResume": {
+    "message": "Resume"
+  },
+  "popupCancel": {
+    "message": "Cancel"
+  },
+  "popupRemove": {
+    "message": "Remove from list"
+  },
+  "popupAutoLaunch": {
+    "message": "Open the app when a download arrives"
+  }
+}

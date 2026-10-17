@@ -1,0 +1,46 @@
+<Window x:Class="MCDM.OnboardingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:MCDM"
+        Title="MC Download Manager" Width="600" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <StackPanel Margin="22">
+        <DockPanel>
+            <Image Source="pack://application:,,,/MCDownloadManager;component/Resources/icon.png" Width="56" Height="56" Margin="0,0,14,0"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource Title}" Text="{l:T 'Welcome to MC Download Manager'}"/>
+                <TextBlock x:Name="Subtitle" Opacity="0.7"/>
+            </StackPanel>
+        </DockPanel>
+
+        <StackPanel x:Name="Step0" Margin="0,16,0,0">
+            <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,10"
+                       Text="{l:T 'Browser downloads and copied links with these extensions are handed to the app. Everything else stays in the browser. You can change this later in Settings ▸ File Types.'}"/>
+            <l:CaptureTypesEditor/>
+            <Separator Margin="0,12"/>
+            <CheckBox Content="{l:T 'Watch the clipboard for links and ask to download them'}"
+                      IsChecked="{Binding WatchClipboard, Source={x:Static l:AppSettings.Shared}}"/>
+        </StackPanel>
+
+        <StackPanel x:Name="Step1" Margin="0,16,0,0" Visibility="Collapsed">
+            <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,10"
+                       Text="{l:T 'The extensions let your browsers hand their downloads to MC Download Manager and capture videos on pages. A guided setup walks you through each browser, one at a time. You can run it later from Settings ▸ Browser Extensions.'}"/>
+            <ItemsControl x:Name="BrowserList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                            <Image Source="{Binding Icon}" Width="18" Height="18" Margin="0,0,8,0"/>
+                            <TextBlock Text="{Binding Name}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <DockPanel Margin="0,18,0,0" LastChildFill="False">
+            <Button x:Name="BackButton" Content="{l:T 'Back'}" Click="Back_Click" Visibility="Collapsed"/>
+            <Button x:Name="PrimaryButton" DockPanel.Dock="Right" IsDefault="True" Click="Primary_Click" Margin="8,0,0,0"/>
+            <Button x:Name="NotNowButton" DockPanel.Dock="Right" Content="{l:T 'Not Now'}" Click="NotNow_Click" Visibility="Collapsed"/>
+        </DockPanel>
+    </StackPanel>
+</Window>

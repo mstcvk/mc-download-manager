@@ -1,0 +1,28 @@
+<Window x:Class="MCDM.WizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:MCDM"
+        Title="{l:T 'Browser Extension Setup'}" Width="640" Height="500" ResizeMode="CanMinimize"
+        Icon="pack://application:,,,/MCDownloadManager;component/Resources/app.ico"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="22,14">
+            <StackPanel x:Name="Dots" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"/>
+            <Image x:Name="BrowserIcon" Width="40" Height="40" Margin="0,0,12,0"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="BrowserName" Style="{StaticResource Title}"/>
+                <TextBlock x:Name="Progress" Style="{StaticResource Caption}"/>
+            </StackPanel>
+        </DockPanel>
+        <Separator DockPanel.Dock="Top" Margin="0"/>
+        <DockPanel DockPanel.Dock="Bottom" Margin="22,12" LastChildFill="False">
+            <Button x:Name="BackButton" Content="{l:T 'Back'}" Click="Back_Click"/>
+            <Button x:Name="NextButton" DockPanel.Dock="Right" IsDefault="True" Click="Next_Click" Margin="8,0,0,0"/>
+            <Button x:Name="SkipButton" DockPanel.Dock="Right" Content="{l:T 'Skip This Browser'}" Click="Skip_Click"/>
+        </DockPanel>
+        <Separator DockPanel.Dock="Bottom" Margin="0"/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="Body" Margin="22"/>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

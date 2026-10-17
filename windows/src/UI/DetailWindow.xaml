@@ -1,0 +1,108 @@
+<Window x:Class="MCDM.DetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:MCDM"
+        Width="580" Height="560" MinWidth="520" MinHeight="250"
+        Icon="pack://application:,,,/MCDownloadManager;component/Resources/app.ico">
+    <Grid Margin="16">
+        <!-- While downloading -->
+        <DockPanel x:Name="ActivePanel">
+            <Grid x:Name="Info" DockPanel.Dock="Top">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.Resources>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,2,16,2"/>
+                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                    </Style>
+                </Grid.Resources>
+                <Grid.RowDefinitions>
+                    <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                    <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Opacity="0.7" Text="URL"/>
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="UrlText" IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0" Margin="0,2"/>
+                <TextBlock Grid.Row="1" Opacity="0.7" Text="{l:T 'Status'}"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="StatusText"/>
+                <TextBlock Grid.Row="2" Opacity="0.7" Text="{l:T 'File size'}"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SizeText"/>
+                <TextBlock Grid.Row="3" Opacity="0.7" Text="{l:T 'Downloaded'}"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DownloadedText"/>
+                <TextBlock Grid.Row="4" Opacity="0.7" Text="{l:T 'Transfer rate'}"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="RateText"/>
+                <TextBlock Grid.Row="5" Opacity="0.7" Text="{l:T 'Time left'}"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" x:Name="EtaText"/>
+                <TextBlock Grid.Row="6" Opacity="0.7" Text="{l:T 'Resume capability'}"/>
+                <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ResumeText"/>
+                <TextBlock Grid.Row="7" Opacity="0.7" Text="{l:T 'Save to'}"/>
+                <TextBlock Grid.Row="7" Grid.Column="1" x:Name="SaveToText"/>
+            </Grid>
+            <ProgressBar x:Name="Progress" DockPanel.Dock="Top" Height="6" Maximum="1" Margin="0,12"/>
+            <DockPanel DockPanel.Dock="Top" LastChildFill="False">
+                <Button x:Name="DetailsButton" Click="Details_Click" Margin="0,0,12,0"/>
+                <CheckBox x:Name="AutoClose" Content="{l:T 'Close when completed'}" VerticalAlignment="Center"
+                          IsChecked="{Binding AutoCloseDetail, Source={x:Static l:AppSettings.Shared}}"/>
+                <Button x:Name="SecondButton" DockPanel.Dock="Right" Click="Second_Click" Margin="8,0,0,0"/>
+                <Button x:Name="PrimaryButton" DockPanel.Dock="Right" Click="Primary_Click"/>
+            </DockPanel>
+            <DockPanel x:Name="DetailsPanel" Margin="0,14,0,0">
+                <TextBlock x:Name="DetailsCaption" DockPanel.Dock="Top" Style="{StaticResource Caption}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                <l:SegmentBar x:Name="Bar" DockPanel.Dock="Top" Height="12" Margin="0,0,0,8"/>
+                <DataGrid x:Name="Connections" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                          GridLinesVisibility="None" RowHeaderWidth="0" MinHeight="140">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="{l:T 'N.'}" Binding="{Binding Index}" Width="40"/>
+                        <DataGridTextColumn Header="{l:T 'Downloaded'}" Binding="{Binding Received}" Width="110"/>
+                        <DataGridTextColumn Header="{l:T 'Start'}" Binding="{Binding Start}" Width="110"/>
+                        <DataGridTextColumn Header="{l:T 'Info'}" Binding="{Binding Info}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <TextBox x:Name="LogBox" IsReadOnly="True" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" MinHeight="140" Visibility="Collapsed"/>
+            </DockPanel>
+        </DockPanel>
+
+        <!-- Completed -->
+        <DockPanel x:Name="CompletedPanel" Visibility="Collapsed">
+            <DockPanel DockPanel.Dock="Top">
+                <TextBlock Style="{StaticResource Glyph}" Text="&#xEC61;" FontSize="44" Foreground="{StaticResource Ok}" Margin="0,0,14,0"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource Title}" Text="{l:T 'Download completed'}"/>
+                    <TextBlock x:Name="DoneName" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </DockPanel>
+            <DockPanel DockPanel.Dock="Bottom" LastChildFill="False" Margin="0,12,0,0">
+                <Button Content="{l:T 'Close'}" IsCancel="True" Click="Close_Click"/>
+                <Button DockPanel.Dock="Right" Content="{l:T 'Open'}" IsDefault="True" Click="Open_Click" Margin="8,0,0,0"/>
+                <Button DockPanel.Dock="Right" Content="{l:T 'Show in Explorer'}" Click="Reveal_Click"/>
+            </DockPanel>
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/>
+                </Grid.RowDefinitions>
+                <Grid.Resources>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,2,16,2"/>
+                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                    </Style>
+                </Grid.Resources>
+                <TextBlock Grid.Row="0" Opacity="0.7" Text="{l:T 'Size'}"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="DoneSize"/>
+                <TextBlock Grid.Row="1" Opacity="0.7" Text="{l:T 'Location'}"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DoneLocation"/>
+                <TextBlock Grid.Row="2" Opacity="0.7" Text="URL"/>
+                <TextBox Grid.Row="2" Grid.Column="1" x:Name="DoneUrl" IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0" Margin="0,2"/>
+                <TextBlock Grid.Row="3" Opacity="0.7" Text="{l:T 'Finished'}"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DoneAt"/>
+            </Grid>
+        </DockPanel>
+
+        <TextBlock x:Name="RemovedText" Text="{l:T 'This download was removed from the list.'}" Visibility="Collapsed"/>
+    </Grid>
+</Window>
