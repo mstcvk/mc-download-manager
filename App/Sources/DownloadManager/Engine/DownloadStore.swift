@@ -26,6 +26,17 @@ final class DownloadStore: ObservableObject {
     let settings: AppSettings
     private var downloaders: [UUID: SegmentedDownloader] = [:]
     private var videoProcesses: [UUID: Process] = [:]
+    /// Torrent downloads: aria2 gid per item (in memory; after a restart the torrent is re-added and aria2 resumes from its control file).
+    private var torrentGIDs: [UUID: String] = [:]
+    private var torrentPollInFlight = false
+    /// Torrents whose files must be chosen once aria2 knows them (multi-file torrents are added paused).
+    private var torrentSelectionPending: Set<UUID> = []
+    /// Torrents waiting in (or shown by) the file-selection prompt.
+    private var torrentAwaitingChoice: Set<UUID> = []
+    private var torrentSelectionQueue: [(id: UUID, gid: String, name: String, dir: String?, files: [TorrentEngine.TorrentFile])] = []
+    private var torrentSelectionPrompting = false
+    /// gids we already asked aria2 to unpause (until it reports them running).
+    private var torrentUnpauseRequested: Set<String> = []
     /// yt-dlp downloads several files (video, audio): bytes completed in earlier phases + approx total.
     private var videoPhase: [UUID: (base: Int64, lastDownloaded: Int64, approxTotal: Int64)] = [:]
     /// YouTube downloads waiting for the deno install prompt / install to finish.
@@ -108,6 +119,7 @@ final class DownloadStore: ObservableObject {
 
         var name = req.fileName.flatMap { $0.isEmpty ? nil : $0 } ?? Self.fileName(from: req.url)
         if req.kind == .video { name = req.url.host ?? "video" }
+        if req.kind == .torrent { name = TorrentInput.displayName(for: req.url) }
         name = Self.sanitize(name)
 
         var item = DownloadItem(url: req.url, fileName: name,
@@ -116,6 +128,11 @@ final class DownloadStore: ObservableObject {
         item.headers = headers
         item.requestedSegments = req.segments ?? 0
         item.sourceBrowser = req.sourceBrowser
+        if req.kind == .torrent, req.url.isFileURL {
+            // Keep our own copy so the torrent can be resumed even if the original .torrent file is moved or deleted.
+            let dst = torrentsDirectory.appendingPathComponent("\(item.id.uuidString).torrent")
+            if (try? FileManager.default.copyItem(at: req.url, to: dst)) != nil { item.torrentFile = dst.path }
+        }
         if req.kind == .video, let cookies = req.cookies, !cookies.isEmpty {
             item.cookieFile = writeCookieFile(cookies, id: item.id)
         }
@@ -130,6 +147,12 @@ final class DownloadStore: ObservableObject {
     func addURLs(_ text: String, kind: DownloadKind, segments: Int? = nil) {
         for line in text.split(whereSeparator: \.isNewline) {
             let s = line.trimmingCharacters(in: .whitespaces)
+            if let t = TorrentInput.url(from: s) {          // magnet link or .torrent file
+                var r = NewDownloadRequest(url: t)
+                r.kind = .torrent
+                add(r)
+                continue
+            }
             guard let url = URL(string: s), let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else { continue }
             var r = NewDownloadRequest(url: url)
             r.kind = kind
@@ -151,7 +174,11 @@ final class DownloadStore: ObservableObject {
     private func startItem(_ id: UUID) {
         guard let i = index(of: id) else { return }
         let item = items[i]
-        if item.kind == .video { startVideo(item) } else { startFile(item) }
+        switch item.kind {
+        case .video: startVideo(item)
+        case .torrent: startTorrent(item)
+        case .file: startFile(item)
+        }
     }
 
     private func startFile(_ item: DownloadItem) {
@@ -513,6 +540,245 @@ final class DownloadStore: ObservableObject {
         }
     }
 
+    // MARK: - Torrent (aria2c)
+
+    private var torrentsDirectory: URL {
+        let d = supportDir.appendingPathComponent("torrents", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }
+
+    private func startTorrent(_ item: DownloadItem) {
+        let id = item.id
+        update(id) {
+            $0.state = .downloading; $0.errorMessage = nil; $0.speed = 0
+            $0.stage = String(localized: "Starting torrent…")
+        }
+        let engine = TorrentEngine.shared
+        engine.ensureRunning(downloadDirectory: settings.downloadDirectory, downloadLimit: settings.torrentDownloadLimit) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .failure(let e):
+                    self.failTorrent(id, e.localizedDescription)
+                case .success:
+                    guard self.items.first(where: { $0.id == id })?.state == .downloading else { return }
+                    if let gid = self.torrentGIDs[id] {
+                        self.torrentUnpauseRequested.insert(gid)
+                        engine.unpause(gid) { r in
+                            DispatchQueue.main.async {
+                                if case .failure = r {          // aria2 no longer knows this gid (restarted): add it again
+                                    self.torrentGIDs[id] = nil
+                                    self.addTorrentToEngine(id)
+                                }
+                            }
+                        }
+                    } else {
+                        self.addTorrentToEngine(id)
+                    }
+                }
+            }
+        }
+    }
+
+    private func addTorrentToEngine(_ id: UUID) {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        var options = ["dir": item.directory.path]
+        var fileOptions = options       // for addTorrent; a magnet's metadata must not be paused
+        if let sel = item.selectedFiles, !sel.isEmpty {
+            options["select-file"] = sel.map(String.init).joined(separator: ",")
+            fileOptions = options
+        } else {
+            torrentSelectionPending.insert(id)
+            fileOptions["pause"] = "true"   // wait for the file selection
+        }
+        let done: (Result<String, Error>) -> Void = { [weak self] r in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch r {
+                case .failure(let e):
+                    self.failTorrent(id, e.localizedDescription)
+                case .success(let gid):
+                    switch self.items.first(where: { $0.id == id })?.state {
+                    case .downloading?:
+                        self.torrentGIDs[id] = gid
+                    case .paused?, .queued?:                    // paused while aria2 was starting
+                        self.torrentGIDs[id] = gid
+                        TorrentEngine.shared.pause(gid)
+                    default:                                    // cancelled or removed meanwhile
+                        TorrentEngine.shared.remove(gid)
+                    }
+                }
+            }
+        }
+        if let tf = item.torrentFile, FileManager.default.fileExists(atPath: tf) {
+            TorrentEngine.shared.addTorrent(fileAt: tf, options: fileOptions, completion: done)
+        } else if item.url.isFileURL {
+            TorrentEngine.shared.addTorrent(fileAt: item.url.path, options: fileOptions, completion: done)
+        } else {
+            TorrentEngine.shared.addMagnet(item.url.absoluteString, options: options, completion: done)
+        }
+    }
+
+    private func failTorrent(_ id: UUID, _ message: String) {
+        if let g = torrentGIDs.removeValue(forKey: id) { TorrentEngine.shared.forget(g) }
+        torrentSelectionPending.remove(id)
+        guard items.first(where: { $0.id == id })?.state == .downloading else { return }
+        update(id) {
+            $0.state = .failed; $0.errorMessage = message; $0.speed = 0; $0.stage = ""
+            $0.log = String(($0.log + message + "\n").suffix(6000))
+        }
+        scheduleSave()
+        pumpQueue()
+    }
+
+    /// Asks aria2 for the status of every running torrent (one RPC call) and mirrors it into the items.
+    private func pollTorrents() {
+        guard !torrentPollInFlight else { return }
+        let active: [(UUID, String)] = items
+            .filter { $0.kind == .torrent && $0.state == .downloading }
+            .compactMap { item in torrentGIDs[item.id].map { (item.id, $0) } }
+        guard !active.isEmpty else { return }
+        torrentPollInFlight = true
+        TorrentEngine.shared.statuses(active.map { $0.1 }) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.torrentPollInFlight = false
+                switch result {
+                case .failure:
+                    if !TorrentEngine.shared.isRunning {
+                        for (id, _) in active { self.failTorrent(id, String(localized: "aria2c stopped unexpectedly. Use Resume to restart the torrent.")) }
+                    }
+                case .success(let map):
+                    for (id, gid) in active where self.torrentGIDs[id] == gid {
+                        if let st = map[gid] {
+                            self.applyTorrentStatus(st, to: id)
+                        } else {
+                            self.failTorrent(id, String(localized: "aria2c lost this torrent. Use Resume to restart it."))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func applyTorrentStatus(_ st: TorrentEngine.Status, to id: UUID) {
+        guard let i = index(of: id), items[i].state == .downloading else { return }
+        var item = items[i]
+        if let h = st.infoHash, !h.isEmpty { item.infoHash = h }
+        switch st.status {
+        case "complete":
+            if let next = st.followedBy.first {
+                // A magnet link's metadata arrived; the real download continues under a new gid.
+                torrentGIDs[id] = next
+                TorrentEngine.shared.forget(st.gid)
+                keepTorrentMetadata(&item, dir: st.dir)
+                item.stage = String(localized: "Metadata received, starting…")
+                item.log = String((item.log + item.stage + "\n").suffix(6000))
+                items[i] = item
+                scheduleSave()
+                return
+            }
+            torrentGIDs[id] = nil
+            TorrentEngine.shared.forget(st.gid)
+            item.state = .completed
+            item.completedAt = Date()
+            item.speed = 0
+            item.stage = ""
+            if st.totalLength > 0 { item.totalBytes = st.totalLength; item.receivedBytes = st.totalLength }
+            if let name = st.name, !st.isMetadata {
+                let path = ((st.dir ?? item.directory.path) as NSString).appendingPathComponent(name)
+                item.finalPath = path
+                item.fileName = name
+                Self.applyQuarantine(to: URL(fileURLWithPath: path), source: item.url)
+            }
+            items[i] = item
+            notifyCompleted(item)
+            DetailWindowManager.shared.didComplete(id: id, autoClose: settings.autoCloseDetail)
+            scheduleSave()
+            pumpQueue()
+        case "error":
+            failTorrent(id, st.errorMessage ?? String(localized: "Torrent download failed"))
+        case "removed":
+            break
+        default:    // active, waiting, paused
+            if st.status != "paused" { torrentUnpauseRequested.remove(st.gid) }
+            if st.status == "paused", !st.isMetadata, !torrentAwaitingChoice.contains(id), !torrentUnpauseRequested.contains(st.gid) {
+                // The app still wants this torrent running: aria2 paused it after the metadata (pause-metadata)
+                // or it was added paused for the file selection.
+                if torrentSelectionPending.remove(id) != nil, st.files.count > 1 {
+                    torrentAwaitingChoice.insert(id)
+                    torrentSelectionQueue.append((id, st.gid, st.name ?? item.fileName, st.dir, st.files))
+                    item.stage = String(localized: "Waiting for file selection…")
+                    items[i] = item
+                    if !torrentSelectionPrompting {
+                        torrentSelectionPrompting = true
+                        DispatchQueue.main.async { [weak self] in self?.promptNextTorrentSelection() }
+                    }
+                    return
+                }
+                let gid = st.gid
+                torrentUnpauseRequested.insert(gid)
+                if let sel = item.selectedFiles, !sel.isEmpty {
+                    TorrentEngine.shared.changeOption(gid, ["select-file": sel.map(String.init).joined(separator: ",")]) { _ in
+                        TorrentEngine.shared.unpause(gid) { _ in }
+                    }
+                } else {
+                    item.selectedFiles = st.files.map(\.index)
+                    TorrentEngine.shared.unpause(gid) { _ in }
+                }
+            }
+            item.totalBytes = st.totalLength > 0 ? st.totalLength : -1
+            item.receivedBytes = st.completedLength
+            item.speed = st.downloadSpeed
+            if st.isMetadata {
+                item.stage = String(localized: "Fetching torrent metadata…")
+            } else {
+                if let name = st.name { item.fileName = name }
+                keepTorrentMetadata(&item, dir: st.dir)
+                item.stage = String(localized: "Peers: \(st.connections) · Seeds: \(st.numSeeders)")
+            }
+            items[i] = item
+        }
+    }
+
+    /// Shows the file list of the next multi-file torrent (one prompt at a time).
+    private func promptNextTorrentSelection() {
+        guard !torrentSelectionQueue.isEmpty else { torrentSelectionPrompting = false; return }
+        let next = torrentSelectionQueue.removeFirst()
+        guard items.first(where: { $0.id == next.id })?.state == .downloading else {
+            torrentAwaitingChoice.remove(next.id)
+            promptNextTorrentSelection()
+            return
+        }
+        let chosen = TorrentFilePicker.run(torrentName: next.name, files: next.files, dir: next.dir)
+        torrentAwaitingChoice.remove(next.id)
+        if items.first(where: { $0.id == next.id })?.state == .downloading {
+            if let chosen {
+                update(next.id) { $0.selectedFiles = chosen; $0.stage = String(localized: "Starting torrent…") }
+                scheduleSave()
+                let gid = next.gid
+                torrentUnpauseRequested.insert(gid)
+                TorrentEngine.shared.changeOption(gid, ["select-file": chosen.map(String.init).joined(separator: ",")]) { _ in
+                    TorrentEngine.shared.unpause(gid) { _ in }
+                }
+            } else {
+                cancel(next.id)
+            }
+        }
+        DispatchQueue.main.async { [weak self] in self?.promptNextTorrentSelection() }
+    }
+
+    /// aria2 saves a magnet's metadata as <dir>/<infohash>.torrent: move it out of the download folder and keep it for resuming.
+    private func keepTorrentMetadata(_ item: inout DownloadItem, dir: String?) {
+        guard item.torrentFile == nil, let h = item.infoHash, !h.isEmpty else { return }
+        let src = URL(fileURLWithPath: dir ?? item.directory.path).appendingPathComponent("\(h).torrent")
+        guard FileManager.default.fileExists(atPath: src.path) else { return }
+        let dst = torrentsDirectory.appendingPathComponent("\(item.id.uuidString).torrent")
+        try? FileManager.default.removeItem(at: dst)
+        if (try? FileManager.default.moveItem(at: src, to: dst)) != nil { item.torrentFile = dst.path }
+    }
+
     // MARK: - Kullanıcı eylemleri
 
     func pause(_ id: UUID) {
@@ -520,6 +786,7 @@ final class DownloadStore: ObservableObject {
         update(id) { $0.state = .paused; $0.speed = 0 }
         downloaders[id]?.stop()
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
+        if let g = torrentGIDs[id] { TorrentEngine.shared.pause(g) }
         scheduleSave()
         pumpQueue()
     }
@@ -543,6 +810,8 @@ final class DownloadStore: ObservableObject {
         let item = items[i]
         if let dl = downloaders.removeValue(forKey: id) { dl.stop() }
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
+        if let g = torrentGIDs.removeValue(forKey: id) { TorrentEngine.shared.remove(g) }   // files already on disk stay
+        torrentSelectionPending.remove(id)
         try? FileManager.default.removeItem(at: item.partURL)
         update(id) { $0.state = .cancelled; $0.speed = 0; $0.receivedBytes = 0; $0.segments = [] }
         scheduleSave()
@@ -554,6 +823,8 @@ final class DownloadStore: ObservableObject {
         let item = items[i]
         if let dl = downloaders.removeValue(forKey: id) { dl.stop() }
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
+        if let g = torrentGIDs.removeValue(forKey: id) { TorrentEngine.shared.remove(g) }
+        if let tf = item.torrentFile, tf.hasPrefix(torrentsDirectory.path) { try? FileManager.default.removeItem(atPath: tf) }
         try? FileManager.default.removeItem(at: item.partURL)
         if let cf = item.cookieFile { try? FileManager.default.removeItem(atPath: cf) }
         if deleteFile, let fp = item.finalPath, FileManager.default.fileExists(atPath: fp) {
@@ -591,6 +862,7 @@ final class DownloadStore: ObservableObject {
     func shutdown() {
         pauseAll()
         save()
+        TorrentEngine.shared.shutdown()   // SIGTERM: aria2 saves its control files; torrents resume on next launch
     }
 
     // MARK: - Hız ölçümü
@@ -598,7 +870,7 @@ final class DownloadStore: ObservableObject {
     private func tick() {
         let now = Date()
         var activeIDs = Set<UUID>()
-        for i in items.indices where items[i].state == .downloading && items[i].kind != .video {
+        for i in items.indices where items[i].state == .downloading && items[i].kind == .file {
             let id = items[i].id
             activeIDs.insert(id)
             let bytes = items[i].receivedBytes
@@ -613,8 +885,10 @@ final class DownloadStore: ObservableObject {
         }
         samples = samples.filter { activeIDs.contains($0.key) }
         DetailWindowManager.shared.refreshTitles(items: items)
+        if tickCount % 2 == 0 { pollTorrents() }     // torrent status once a second
         tickCount += 1
-        if !activeIDs.isEmpty, tickCount % 10 == 0 { save() }   // parça durumu 5 sn'de bir diske
+        let torrentsRunning = items.contains { $0.kind == .torrent && $0.state == .downloading }
+        if !activeIDs.isEmpty || torrentsRunning, tickCount % 10 == 0 { save() }   // parça durumu 5 sn'de bir diske
     }
 
     // MARK: - Kalıcılık

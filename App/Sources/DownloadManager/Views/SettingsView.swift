@@ -12,6 +12,7 @@ struct SettingsView: View {
             FileTypesSettings().tabItem { Label("File Types", systemImage: "doc.badge.gearshape") }
             BrowserSettings().tabItem { Label("Browser Extensions", systemImage: "puzzlepiece.extension") }
             VideoSettings().tabItem { Label("Video", systemImage: "film") }
+            TorrentSettings().tabItem { Label("Torrent", systemImage: "arrow.down.circle.dotted") }
         }
         .frame(width: 600, height: 520)
     }
