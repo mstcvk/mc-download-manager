@@ -3,6 +3,7 @@ import Foundation
 enum DownloadKind: String, Codable {
     case file
     case video
+    case torrent    // magnet link or .torrent file, downloaded with aria2c (TorrentEngine)
 }
 
 enum DownloadState: String, Codable {
@@ -51,6 +52,9 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var finalPath: String? = nil
     var requestedSegments: Int = 0      // 0 = ayarlardaki değer
     var sourceBrowser: String? = nil    // extension that sent it (chrome, brave, opera, edge, firefox, safari)
+    var infoHash: String? = nil         // torrent: BitTorrent info hash
+    var torrentFile: String? = nil      // torrent: .torrent used to resume (given file, or metadata aria2 saved for a magnet)
+    var selectedFiles: [Int]? = nil     // torrent: chosen aria2 file indexes (1-based); nil = not chosen yet
 
     // Kalıcı olmayan alanlar
     var speed: Double = 0
@@ -60,7 +64,8 @@ struct DownloadItem: Identifiable, Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, url, fileName, directory, kind, state, totalBytes, receivedBytes, supportsRanges,
-             segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser
+             segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser,
+             infoHash, torrentFile, selectedFiles
     }
 
     var destinationURL: URL { directory.appendingPathComponent(fileName) }

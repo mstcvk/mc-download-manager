@@ -63,7 +63,7 @@ struct DownloadDetailView: View {
             }
             if showDetails {
                 Divider()
-                if item.kind == .video {
+                if item.kind != .file {
                     logView(item)
                 } else {
                     connections(item)
@@ -102,7 +102,7 @@ struct DownloadDetailView: View {
             }
             GridRow {
                 Text("Resume capability").foregroundStyle(.secondary)
-                Text(item.kind == .video ? "yt-dlp" : (item.supportsRanges ? String(localized: "Yes") : (item.state == .queued || item.state == .probing ? "?" : String(localized: "No"))))
+                Text(item.kind == .video ? "yt-dlp" : item.kind == .torrent ? "aria2 (BitTorrent)" : (item.supportsRanges ? String(localized: "Yes") : (item.state == .queued || item.state == .probing ? "?" : String(localized: "No"))))
             }
             GridRow {
                 Text("Save to").foregroundStyle(.secondary)
@@ -117,6 +117,7 @@ struct DownloadDetailView: View {
         switch item.state {
         case .downloading:
             if item.kind == .video { return item.stage.isEmpty ? String(localized: "Downloading with yt-dlp…") : item.stage }
+            if item.kind == .torrent { return item.stage.isEmpty ? String(localized: "Downloading torrent…") : item.stage }
             return String(localized: "Receiving data…")
         case .failed: return item.errorMessage ?? String(localized: "Error")
         default: return item.state.label
@@ -224,7 +225,7 @@ struct DownloadDetailView: View {
 
     private func logView(_ item: DownloadItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("yt-dlp output").font(.caption).foregroundStyle(.secondary)
+            Text(item.kind == .torrent ? String(localized: "Torrent activity") : String(localized: "yt-dlp output")).font(.caption).foregroundStyle(.secondary)
             ScrollViewReader { proxy in
                 ScrollView {
                     Text(item.log.isEmpty ? String(localized: "Waiting…") : item.log)

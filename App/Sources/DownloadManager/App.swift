@@ -117,6 +117,7 @@ struct MenuBarLabel: View {
 struct MenuBarContent: View {
     @EnvironmentObject var store: DownloadStore
     @EnvironmentObject var server: ServerController
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         if store.activeCount > 0 {
@@ -138,6 +139,7 @@ struct MenuBarContent: View {
         Divider()
         Button("Pause All") { store.pauseAll() }
         Button("Resume All") { store.resumeAll() }
+        Toggle("Limit Torrent Speed (\(Fmt.speed(Double(settings.torrentLimitKB) * 1024)))", isOn: $settings.torrentLimitEnabled)
         Divider()
         if #available(macOS 14.0, *) {
             SettingsLink { Text("Settings…") }
@@ -172,6 +174,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// magnet: links and .torrent files opened from the browser or Finder.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let store = Self.sharedStore else { return }
+        for url in urls where TorrentInput.isTorrent(url) {
+            store.addURLs(url.isFileURL ? url.path : url.absoluteString, kind: .torrent)
+        }
+    }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { AppPresence.shared.showMainWindow() }

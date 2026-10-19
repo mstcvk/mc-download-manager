@@ -37,11 +37,13 @@
 		AF871E2AEE758336EB37EB6C /* SafariExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D63B5A8793FD88DB85E01AB5 /* SafariExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BDB0248A098E8E7B8CF57A04 /* popup.js in Resources */ = {isa = PBXBuildFile; fileRef = 56D9E6332000F44F0162771B /* popup.js */; };
 		C367B0CBD2C8DAE0A4A1BA32 /* AddDownloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A586B8190F17D737DA9DA87A /* AddDownloadView.swift */; };
+		C55157A4E676653CFBE4D712 /* TorrentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2397752884AC2A78E335C5AE /* TorrentViews.swift */; };
 		CCFECC40BA806C9CE8D283F7 /* ServerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE44A8B381BE7A3293C1D8DC /* ServerController.swift */; };
 		D9ECABE0BFCE0514E59109C3 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FC9E1391C4326B083297C6B /* main.swift */; };
 		DD47AD949615D3F7357EA56A /* CaptureTypesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2722F3847C9938FE82AE52A6 /* CaptureTypesView.swift */; };
 		EA0BD54DF6C5AE59D386CDBB /* ToolInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842F422B68150676664D0F41 /* ToolInstaller.swift */; };
 		EF65281669A508342D149244 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DBC764000EE3129062C866 /* SafariWebExtensionHandler.swift */; };
+		F65FF337865B421EBC6A9E05 /* TorrentEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B24AFCF6DF8B8ADC173360A8 /* TorrentEngine.swift */; };
 		F6E32EAA739C843060EA71E4 /* icons in Resources */ = {isa = PBXBuildFile; fileRef = 4F32204A8C002EDB7A8CA064 /* icons */; };
 		FF36B17C060542ACFDDD98FD /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78315EAEA35A1BB070808C40 /* main.swift */; };
 		FF7DBBC49FB6672768627A73 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5CC4471590244550393166 /* App.swift */; };
@@ -97,6 +99,7 @@
 		1D706B75CF6A92DE848A1B70 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		1F7EA964395BCFECE820DEDF /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		230F2774B9FFB8912976A4CD /* ClipboardWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWatcher.swift; sourceTree = "<group>"; };
+		2397752884AC2A78E335C5AE /* TorrentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentViews.swift; sourceTree = "<group>"; };
 		2722F3847C9938FE82AE52A6 /* CaptureTypesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureTypesView.swift; sourceTree = "<group>"; };
 		3A5CC4471590244550393166 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		3B4E2AC443B11C6AD0C77DAE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -120,6 +123,7 @@
 		9DD9E371341F53169BBB893E /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		A586B8190F17D737DA9DA87A /* AddDownloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDownloadView.swift; sourceTree = "<group>"; };
 		AB398706B5B1AF31514846CB /* LocalServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalServer.swift; sourceTree = "<group>"; };
+		B24AFCF6DF8B8ADC173360A8 /* TorrentEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentEngine.swift; sourceTree = "<group>"; };
 		B63E5127C8210C9C6CE88CB8 /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = content.js; sourceTree = "<group>"; };
 		CDA15CED2682BF59E18C3E09 /* SegmentedDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedDownloader.swift; sourceTree = "<group>"; };
 		D4315A5826C2F72F4247D931 /* ExtensionSetupWizard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSetupWizard.swift; sourceTree = "<group>"; };
@@ -239,6 +243,7 @@
 				D4315A5826C2F72F4247D931 /* ExtensionSetupWizard.swift */,
 				9DD9E371341F53169BBB893E /* Formatters.swift */,
 				8AC0FDA8C0D811D2E0C9C87E /* SettingsView.swift */,
+				2397752884AC2A78E335C5AE /* TorrentViews.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -276,6 +281,7 @@
 				230F2774B9FFB8912976A4CD /* ClipboardWatcher.swift */,
 				FFA232EBC90C29DD738F1E3E /* DownloadStore.swift */,
 				CDA15CED2682BF59E18C3E09 /* SegmentedDownloader.swift */,
+				B24AFCF6DF8B8ADC173360A8 /* TorrentEngine.swift */,
 				5B96EDDD486AAAA976EDFCDA /* VideoDownloader.swift */,
 			);
 			path = Engine;
@@ -471,6 +477,8 @@
 				4ABFFD403AF2BD3F56116B71 /* SettingsView.swift in Sources */,
 				40DC3F42550855345276FA94 /* SiteLoginManager.swift in Sources */,
 				EA0BD54DF6C5AE59D386CDBB /* ToolInstaller.swift in Sources */,
+				F65FF337865B421EBC6A9E05 /* TorrentEngine.swift in Sources */,
+				C55157A4E676653CFBE4D712 /* TorrentViews.swift in Sources */,
 				4F8297DE8356AAF844B0E183 /* UpdateChecker.swift in Sources */,
 				194CA2E24934630B92414AA3 /* VideoDownloader.swift in Sources */,
 				D9ECABE0BFCE0514E59109C3 /* main.swift in Sources */,

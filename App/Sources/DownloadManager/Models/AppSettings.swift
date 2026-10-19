@@ -34,6 +34,11 @@ final class AppSettings: ObservableObject {
 
     /// Sites whose downloads stay in the browser (hosts without "www."; subdomains match too).
     @Published var browserOnlySites: [String] { didSet { defaults.set(browserOnlySites, forKey: "browserOnlySites") } }
+    /// Torrent download speed limit (applies to all torrents together, immediately).
+    @Published var torrentLimitEnabled: Bool { didSet { defaults.set(torrentLimitEnabled, forKey: "torrentLimitEnabled"); TorrentEngine.shared.setDownloadLimit(torrentDownloadLimit) } }
+    @Published var torrentLimitKB: Int { didSet { defaults.set(torrentLimitKB, forKey: "torrentLimitKB"); TorrentEngine.shared.setDownloadLimit(torrentDownloadLimit) } }
+    /// aria2 value for max-overall-download-limit ("0" = unlimited).
+    var torrentDownloadLimit: String { torrentLimitEnabled && torrentLimitKB > 0 ? "\(torrentLimitKB)K" : "0" }
 
     static func siteKey(_ host: String?) -> String? {
         guard var h = host?.lowercased().trimmingCharacters(in: .whitespaces), !h.isEmpty else { return nil }
@@ -79,6 +84,8 @@ final class AppSettings: ObservableObject {
         loginItemAutoRegistered = defaults.object(forKey: "loginItemAutoRegistered") as? Bool ?? false
         denoPromptSuppressed = defaults.object(forKey: "denoPromptSuppressed") as? Bool ?? false
         browserOnlySites = defaults.stringArray(forKey: "browserOnlySites") ?? []
+        torrentLimitEnabled = defaults.object(forKey: "torrentLimitEnabled") as? Bool ?? false
+        torrentLimitKB = defaults.object(forKey: "torrentLimitKB") as? Int ?? 1024
     }
 
     /// yt-dlp arguments for the chosen format/quality.

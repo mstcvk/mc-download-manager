@@ -3391,6 +3391,286 @@
           }
         }
       }
+    },
+    "aria2c not found. Install it with Homebrew: brew install aria2": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aria2c bulunamadı. Homebrew ile kurun: brew install aria2"
+          }
+        }
+      }
+    },
+    "aria2c did not start": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aria2c başlatılamadı"
+          }
+        }
+      }
+    },
+    "Cannot read the torrent file.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent dosyası okunamıyor."
+          }
+        }
+      }
+    },
+    "aria2c is not running": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aria2c çalışmıyor"
+          }
+        }
+      }
+    },
+    "Starting torrent…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent başlatılıyor…"
+          }
+        }
+      }
+    },
+    "aria2c stopped unexpectedly. Use Resume to restart the torrent.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aria2c beklenmedik şekilde durdu. Torrenti yeniden başlatmak için Devam Et'i kullanın."
+          }
+        }
+      }
+    },
+    "aria2c lost this torrent. Use Resume to restart it.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aria2c bu torrenti kaybetti. Yeniden başlatmak için Devam Et'i kullanın."
+          }
+        }
+      }
+    },
+    "Metadata received, starting…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent bilgisi alındı, başlatılıyor…"
+          }
+        }
+      }
+    },
+    "Torrent download failed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent indirilemedi"
+          }
+        }
+      }
+    },
+    "Fetching torrent metadata…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent bilgisi alınıyor…"
+          }
+        }
+      }
+    },
+    "Peers: %lld · Seeds: %lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı: %lld · Kaynak: %lld"
+          }
+        }
+      }
+    },
+    "Torrent activity": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent etkinliği"
+          }
+        }
+      }
+    },
+    "Downloading torrent…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent indiriliyor…"
+          }
+        }
+      }
+    },
+    "Select All": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tümünü Seç"
+          }
+        }
+      }
+    },
+    "Select None": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiçbirini Seçme"
+          }
+        }
+      }
+    },
+    "%lld of %lld files · %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld dosya · %@"
+          }
+        }
+      }
+    },
+    "Choose the files to download": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilecek dosyaları seçin"
+          }
+        }
+      }
+    },
+    "Torrents stop sharing (seeding) as soon as the download is complete.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrentler indirme biter bitmez paylaşımı (seed) durdurur."
+          }
+        }
+      }
+    },
+    "Speed limit": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hız sınırı"
+          }
+        }
+      }
+    },
+    "Limit torrent download speed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent indirme hızını sınırla"
+          }
+        }
+      }
+    },
+    "Limit: %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sınır: %@"
+          }
+        }
+      }
+    },
+    "Applies immediately to running torrents. Also available from the menu bar icon.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalışan torrentlere hemen uygulanır. Menü çubuğu simgesinden de açılıp kapatılabilir."
+          }
+        }
+      }
+    },
+    "Magnet links and .torrent files": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magnet linkleri ve .torrent dosyaları"
+          }
+        }
+      }
+    },
+    "Magnet links open with": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magnet linklerini açan"
+          }
+        }
+      }
+    },
+    ".torrent files open with": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".torrent dosyalarını açan"
+          }
+        }
+      }
+    },
+    "Use MC Download Manager": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MC Download Manager'ı kullan"
+          }
+        }
+      }
+    },
+    "Limit Torrent Speed (%@)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent Hızını Sınırla (%@)"
+          }
+        }
+      }
+    },
+    "Waiting for file selection…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya seçimi bekleniyor…"
+          }
+        }
+      }
     }
   }
 }
