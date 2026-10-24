@@ -437,7 +437,7 @@ final class DownloadStore: ObservableObject {
             item.state = .completed
             item.completedAt = Date()
             item.speed = 0
-            if let path {
+            if let path = path.map(Self.removingVideoID) {
                 item.finalPath = path
                 item.fileName = URL(fileURLWithPath: path).lastPathComponent
                 Self.applyQuarantine(to: URL(fileURLWithPath: path), source: item.url)
@@ -723,6 +723,17 @@ final class DownloadStore: ObservableObject {
             n = ext.isEmpty ? base : base + "." + ext
         }
         return n.isEmpty ? "download" : n
+    }
+
+    /// yt-dlp saves "<title> [<id>].<ext>" so resume and its duplicate check keep working;
+    /// once finished, rename it to "<title>.<ext>" ("<title> (2).<ext>" if that name is taken).
+    static func removingVideoID(_ path: String) -> String {
+        let url = URL(fileURLWithPath: path)
+        var name = url.lastPathComponent
+        guard let r = name.range(of: " \\[[^\\[\\]]+\\](?=\\.[^.]+$)", options: .regularExpression) else { return path }
+        name.removeSubrange(r)
+        let dest = uniqueDestination(for: url.deletingLastPathComponent().appendingPathComponent(name))
+        return (try? FileManager.default.moveItem(at: url, to: dest)) != nil ? dest.path : path
     }
 
     static func uniqueDestination(for url: URL) -> URL {
