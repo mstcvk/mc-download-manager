@@ -17,6 +17,9 @@
   "notifVideoTitle": {
     "message": "Video indirmesi başlatıldı"
   },
+  "notifAudioTitle": {
+    "message": "MP3 indirmesi başlatıldı"
+  },
   "notifOfflineTitle": {
     "message": "MC Download Manager çalışmıyor"
   },
@@ -59,6 +62,9 @@
   },
   "popupPageVideo": {
     "message": "Bu sayfadaki videoyu indir (yt-dlp)"
+  },
+  "popupPageAudio": {
+    "message": "Bu sayfadaki sesi MP3 olarak indir (yt-dlp)"
   },
   "popupPageLink": {
     "message": "Sayfa adresini dosya olarak indir"

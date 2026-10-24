@@ -63,7 +63,7 @@ struct DownloadDetailView: View {
             }
             if showDetails {
                 Divider()
-                if item.kind == .video {
+                if item.kind != .file {
                     logView(item)
                 } else {
                     connections(item)
@@ -102,7 +102,7 @@ struct DownloadDetailView: View {
             }
             GridRow {
                 Text("Resume capability").foregroundStyle(.secondary)
-                Text(item.kind == .video ? "yt-dlp" : (item.supportsRanges ? String(localized: "Yes") : (item.state == .queued || item.state == .probing ? "?" : String(localized: "No"))))
+                Text(item.kind != .file ? "yt-dlp" : (item.supportsRanges ? String(localized: "Yes") : (item.state == .queued || item.state == .probing ? "?" : String(localized: "No"))))
             }
             GridRow {
                 Text("Save to").foregroundStyle(.secondary)
@@ -116,7 +116,7 @@ struct DownloadDetailView: View {
     private func statusText(_ item: DownloadItem) -> String {
         switch item.state {
         case .downloading:
-            if item.kind == .video { return item.stage.isEmpty ? String(localized: "Downloading with yt-dlp…") : item.stage }
+            if item.kind != .file { return item.stage.isEmpty ? String(localized: "Downloading with yt-dlp…") : item.stage }
             return String(localized: "Receiving data…")
         case .failed: return item.errorMessage ?? String(localized: "Error")
         default: return item.state.label

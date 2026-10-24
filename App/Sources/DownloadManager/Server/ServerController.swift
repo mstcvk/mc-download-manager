@@ -232,7 +232,7 @@ final class ServerController: ObservableObject {
             r.userAgent = obj["userAgent"] as? String
             r.cookieHeader = obj["cookieHeader"] as? String
             r.cookies = obj["cookies"] as? [[String: Any]]
-            r.kind = (obj["kind"] as? String) == "video" ? .video : .file
+            r.kind = (obj["kind"] as? String).flatMap(DownloadKind.init(rawValue:)) ?? .file
             if let h = obj["headers"] as? [String: String] { r.extraHeaders = h }
             if let s = obj["segments"] as? Int { r.segments = s }
             let browser = Self.browserName(req)

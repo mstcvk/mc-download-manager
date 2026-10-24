@@ -107,7 +107,7 @@ final class DownloadStore: ObservableObject {
         if headers["User-Agent"] == nil { headers["User-Agent"] = Self.defaultUserAgent }
 
         var name = req.fileName.flatMap { $0.isEmpty ? nil : $0 } ?? Self.fileName(from: req.url)
-        if req.kind == .video { name = req.url.host ?? "video" }
+        if req.kind != .file { name = req.url.host ?? "video" }
         name = Self.sanitize(name)
 
         var item = DownloadItem(url: req.url, fileName: name,
@@ -116,7 +116,7 @@ final class DownloadStore: ObservableObject {
         item.headers = headers
         item.requestedSegments = req.segments ?? 0
         item.sourceBrowser = req.sourceBrowser
-        if req.kind == .video, let cookies = req.cookies, !cookies.isEmpty {
+        if req.kind != .file, let cookies = req.cookies, !cookies.isEmpty {
             item.cookieFile = writeCookieFile(cookies, id: item.id)
         }
         try? FileManager.default.createDirectory(at: item.directory, withIntermediateDirectories: true)
@@ -151,7 +151,7 @@ final class DownloadStore: ObservableObject {
     private func startItem(_ id: UUID) {
         guard let i = index(of: id) else { return }
         let item = items[i]
-        if item.kind == .video { startVideo(item) } else { startFile(item) }
+        if item.kind != .file { startVideo(item) } else { startFile(item) }
     }
 
     private func startFile(_ item: DownloadItem) {
@@ -378,7 +378,7 @@ final class DownloadStore: ObservableObject {
         let outDir = destinationDirectory(for: item)
         try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         let proc = VideoDownloader.run(
-            executable: exe, url: item.url, outputDir: outDir, formatArgs: settings.ytdlpFormatArguments,
+            executable: exe, url: item.url, outputDir: outDir, formatArgs: item.kind == .audio ? AppSettings.mp3Arguments : settings.ytdlpFormatArguments,
             headers: item.headers, cookieFile: item.cookieFile, useCookies: useCookies,
             onProgress: { [weak self] p in
                 DispatchQueue.main.async {
@@ -598,7 +598,7 @@ final class DownloadStore: ObservableObject {
     private func tick() {
         let now = Date()
         var activeIDs = Set<UUID>()
-        for i in items.indices where items[i].state == .downloading && items[i].kind != .video {
+        for i in items.indices where items[i].state == .downloading && items[i].kind == .file {
             let id = items[i].id
             activeIDs.insert(id)
             let bytes = items[i].receivedBytes

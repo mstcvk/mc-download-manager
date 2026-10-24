@@ -35,6 +35,8 @@ Open the DMG, drag the app to *Applications*, done. The interface is in **Englis
 - **Video downloads** — `<video>`, `.m3u8` and `.mpd` streams on the page are detected; "Download video from this page" uses the bundled
   yt-dlp (with ffmpeg merging). Default output is MP4 up to 1080p (container and resolution configurable). Browser cookies are passed to
   yt-dlp, and an in-app sign-in window handles age-restricted videos. yt-dlp can be updated from GitHub with one click.
+- **MP3 downloads** — "Download MP3 from this page" uses the same bundled yt-dlp to save only the audio as MP3 (best quality,
+  converted with ffmpeg), regardless of the video quality setting. Cookies and the sign-in window work the same way; finished files go to *Music*.
 - **Clipboard** — copy a link and the app asks whether to download it; paste a link into the main window with ⌘V.
 - **UI** — sidebar categories (Images, Music, Video, Apps, Documents, Archives…), sortable table, search,
   an IDM-style per-download window (connection table, segment bar, auto-close option), menu-bar item, notifications.
@@ -142,7 +144,7 @@ project.yml                          xcodegen project spec
 | Endpoint | Description |
 |---|---|
 | `GET /ping` | version, yt-dlp availability, active download count |
-| `POST /download` | `{url, filename?, referer?, userAgent?, cookieHeader?, cookies?[], kind: "file"\|"video", segments?}` |
+| `POST /download` | `{url, filename?, referer?, userAgent?, cookieHeader?, cookies?[], kind: "file"\|"video"\|"audio", segments?}` |
 | `GET /downloads` | status of the last 50 downloads |
 | `POST /action` | `{id, action: "pause"\|"resume"\|"cancel"\|"remove"}` |
 

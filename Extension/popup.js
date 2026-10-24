@@ -167,15 +167,17 @@ function updateRow(d) {
   cancel.title = terminal ? t('popupRemove') : t('popupCancel');
 }
 
-$('pageVideo').onclick = async () => {
+async function downloadPage(btn, kind, label) {
   tab = tab || (await currentTab());
   if (!tab?.url) return;
-  $('pageVideo').textContent = t('popupSending');
-  const r = await send({ type: 'download', url: tab.url, referer: tab.url, kind: 'video' });
-  $('pageVideo').textContent = r && r.ok ? t('popupStarted') : t('popupFailed');
+  btn.textContent = t('popupSending');
+  const r = await send({ type: 'download', url: tab.url, referer: tab.url, kind });
+  btn.textContent = r && r.ok ? t('popupStarted') : t('popupFailed');
   loadDownloads();
-  setTimeout(() => ($('pageVideo').textContent = t('popupPageVideo')), 2500);
-};
+  setTimeout(() => (btn.textContent = t(label)), 2500);
+}
+$('pageVideo').onclick = () => downloadPage($('pageVideo'), 'video', 'popupPageVideo');
+$('pageAudio').onclick = () => downloadPage($('pageAudio'), 'audio', 'popupPageAudio');
 $('pageLink').onclick = async () => {
   tab = tab || (await currentTab());
   if (!tab?.url) return;

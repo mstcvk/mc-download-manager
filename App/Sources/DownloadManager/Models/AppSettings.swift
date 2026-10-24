@@ -81,12 +81,14 @@ final class AppSettings: ObservableObject {
         browserOnlySites = defaults.stringArray(forKey: "browserOnlySites") ?? []
     }
 
+    static let mp3Arguments = ["-f", "ba/b", "-x", "--audio-format", "mp3", "--audio-quality", "0"]
+
     /// yt-dlp arguments for the chosen format/quality.
     var ytdlpFormatArguments: [String] {
         let custom = videoFormat.trimmingCharacters(in: .whitespaces)
         if !custom.isEmpty { return ["-f", custom, "--merge-output-format", videoContainer == "original" ? "mkv" : videoContainer] }
         if videoMaxHeight == -1 { return ["-f", "ba/b", "-x", "--audio-format", "m4a", "--audio-quality", "0"] }
-        if videoMaxHeight == -2 { return ["-f", "ba/b", "-x", "--audio-format", "mp3", "--audio-quality", "0"] }
+        if videoMaxHeight == -2 { return Self.mp3Arguments }
         let h = videoMaxHeight > 0 ? "[height<=\(videoMaxHeight)]" : ""
         var expr: String
         var args: [String] = []

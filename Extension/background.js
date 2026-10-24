@@ -178,7 +178,7 @@ async function sendToApp({ url, filename, referer, kind }) {
     }
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'app error');
-    notify(kind === 'video' ? t('notifVideoTitle') : t('notifSentTitle'), filename || url);
+    notify(kind === 'video' ? t('notifVideoTitle') : kind === 'audio' ? t('notifAudioTitle') : t('notifSentTitle'), filename || url);
     startProgress();
     return { ok: true };
   } catch (e) {

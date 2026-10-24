@@ -3,6 +3,7 @@ import Foundation
 enum DownloadKind: String, Codable {
     case file
     case video
+    case audio      // yt-dlp, extracted to MP3
 }
 
 enum DownloadState: String, Codable {
@@ -129,6 +130,7 @@ enum FileCategory: String, CaseIterable, Identifiable, Codable {
 
     static func detect(fileName: String, kind: DownloadKind) -> FileCategory {
         if kind == .video { return .video }
+        if kind == .audio { return .music }
         let ext = (fileName as NSString).pathExtension.lowercased()
         guard !ext.isEmpty else { return .other }
         for (cat, exts) in table where exts.contains(ext) { return cat }
