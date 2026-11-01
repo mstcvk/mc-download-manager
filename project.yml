@@ -38,6 +38,22 @@ targets:
         CFBundleName: MC Download Manager
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, tr]
+        CFBundleURLTypes:
+          - CFBundleURLName: BitTorrent magnet link
+            CFBundleURLSchemes: [magnet]
+            CFBundleTypeRole: Viewer
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: org.bittorrent.torrent
+            UTTypeDescription: BitTorrent Document
+            UTTypeConformsTo: [public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [torrent]
+              public.mime-type: [application/x-bittorrent]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: BitTorrent Document
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [org.bittorrent.torrent]
         LSApplicationCategoryType: public.app-category.utilities
         # Menu bar app: no Dock icon at launch; AppPresence switches to .regular while a window is open.
         LSUIElement: true

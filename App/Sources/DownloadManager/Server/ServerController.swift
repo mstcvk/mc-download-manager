@@ -223,7 +223,7 @@ final class ServerController: ObservableObject {
             guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any],
                   let urlStr = obj["url"] as? String,
                   let url = URL(string: urlStr),
-                  let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else {
+                  TorrentDownloader.accepts(url) else {
                 return .json(["ok": false, "error": "invalid url"], status: 400)
             }
             var r = NewDownloadRequest(url: url)

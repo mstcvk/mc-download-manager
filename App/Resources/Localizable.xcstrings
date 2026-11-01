@@ -2,6 +2,246 @@
   "sourceLanguage": "en",
   "version": "1.0",
   "strings": {
+    "Torrent": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent"
+          }
+        }
+      }
+    },
+    "Open a torrent file (⌘O)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent dosyası aç (⌘O)"
+          }
+        }
+      }
+    },
+    "Open Torrent File…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent Dosyası Aç…"
+          }
+        }
+      }
+    },
+    "Couldn’t import torrent file": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent dosyası içe aktarılamadı"
+          }
+        }
+      }
+    },
+    "Choose torrent files": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent dosyalarını seçin"
+          }
+        }
+      }
+    },
+    "Select All": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tümünü Seç"
+          }
+        }
+      }
+    },
+    "Deselect All": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçimi Kaldır"
+          }
+        }
+      }
+    },
+    "Download Selected Files": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçilen Dosyaları İndir"
+          }
+        }
+      }
+    },
+    "%lld files · %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld dosya · %@"
+          }
+        }
+      }
+    },
+    "Unselected files may contain small shared pieces needed to verify selected files.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçilmeyen dosyalarda, seçilenleri doğrulamak için gereken küçük ortak parçalar bulunabilir."
+          }
+        }
+      }
+    },
+    "Fetching torrent file list…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent dosya listesi alınıyor…"
+          }
+        }
+      }
+    },
+    "Torrent metadata could not be read.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent bilgileri okunamadı."
+          }
+        }
+      }
+    },
+    "Invalid or unsupported torrent metadata.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrent bilgileri geçersiz veya desteklenmiyor."
+          }
+        }
+      }
+    },
+    "Select at least one torrent file.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En az bir torrent dosyası seçin."
+          }
+        }
+      }
+    },
+    "Magnet links": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magnet bağlantıları"
+          }
+        }
+      }
+    },
+    "Use MC for magnet links": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magnet bağlantılarını MC ile aç"
+          }
+        }
+      }
+    },
+    "MC now opens magnet links. Your browser may ask before opening the app.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magnet bağlantıları artık MC ile açılır. Tarayıcınız uygulamayı açmadan önce onay isteyebilir."
+          }
+        }
+      }
+    },
+    "Magnet links use aria2c (brew install aria2). Choose torrent files before downloading; uploading stops when complete.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magnet bağlantıları aria2c kullanır (brew install aria2). İndirmeden önce torrent dosyalarını seçebilirsiniz; tamamlanınca yükleme durur."
+          }
+        }
+      }
+    },
+    "One HTTP(S) URL or magnet link per line; use the button for .torrent files.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her satıra bir HTTP(S) adresi veya magnet bağlantısı girin; .torrent dosyaları için düğmeyi kullanın."
+          }
+        }
+      }
+    },
+    "Magnet links use aria2c (brew install aria2). All torrent files are downloaded; uploading stops when complete.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magnet bağlantıları aria2c kullanır (brew install aria2). Torrentteki tüm dosyalar indirilir; tamamlanınca yükleme durur."
+          }
+        }
+      }
+    },
+    "Enter valid HTTP(S) URLs or BitTorrent v1 magnet links.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçerli HTTP(S) adresleri veya BitTorrent v1 magnet bağlantıları girin."
+          }
+        }
+      }
+    },
+    "Invalid BitTorrent v1 magnet link.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçersiz BitTorrent v1 magnet bağlantısı."
+          }
+        }
+      }
+    },
+    "aria2c is required for torrents. Install it with Homebrew: brew install aria2, then resume this download.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Torrentler için aria2c gerekir. Homebrew ile brew install aria2 komutunu çalıştırın, ardından bu indirmeye devam edin."
+          }
+        }
+      }
+    },
+    "aria2c exited with code %d. See the download log for details.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aria2c %d koduyla sonlandı. Ayrıntılar için indirme günlüğüne bakın."
+          }
+        }
+      }
+    },
     "Queued": {
       "localizations": {
         "tr": {

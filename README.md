@@ -157,3 +157,13 @@ Issues and pull requests are welcome. Translations live in `App/Resources/Locali
 The code is licensed under the MIT License (see `LICENSE`). Bundled binaries keep their own licenses:
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) and [FFmpeg](https://ffmpeg.org) (static build from martin-riedl.de, GPL).
 If you distribute builds with the GPL ffmpeg binary, keep the source-availability obligation in mind, or point `scripts/fetch-tools.sh` to an LGPL build.
+
+### Magnet downloads
+
+Install [aria2](https://aria2.github.io/) with `brew install aria2`. In **New Download**, paste a BitTorrent v1 `magnet:?xt=urn:btih:…` link (one link per line), or paste it into the main window. Use **Open Torrent File…** to import a `.torrent` file; the app shows its file list so you can choose what to download. Magnet links are recognized automatically, including when the video toggle is enabled.
+
+Each torrent first fetches metadata, then shows file names and sizes so you can choose what to download. Selected files go into a separate `Torrent-<download ID>` folder in the configured download directory. Pause/resume keeps aria2 control files; downloads restored after restarting the app start paused. Torrents upload pieces while downloading and stop seeding when complete. Cancel/remove keeps partial torrent files; use Finder to delete those folders when no longer needed. The app registers the `magnet:` URL scheme. Use **Settings → General → Magnet links → Use MC for magnet links** to make it the default handler (macOS may ask for consent). Clicking a magnet in a browser then opens MC; the browser may ask for permission. Open `.torrent` files from **File → Open Torrent File…**, or choose MC from Finder’s **Open With** menu. To make double-clicking `.torrent` files open MC, use Finder’s **Get Info → Open with → Change All**; MC is an alternate handler and does not change the current default automatically. BitTorrent v2-only links are not supported. Selected file indexes persist across pause/resume and app restarts. Unselected files can contain small pieces shared with selected files; these are kept to support verification and resume.
+
+Run `sh scripts/test-torrent.sh` for the magnet validation and process-output checks.
+
+For a real local magnet transfer with pause/resume and SHA-256 verification, run `python3 tests/torrent-integration/run.py` (requires aria2 and Xcode command-line tools). It creates an 8 MiB test torrent, local tracker and seeder, and removes its temporary files afterwards.

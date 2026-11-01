@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10000000000000000000001 /* TorrentDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* TorrentDownloader.swift */; };
 		05443FB97D1F5CE38328B6C6 /* popup.html in Resources */ = {isa = PBXBuildFile; fileRef = 9A3FF3731D800D3C74501F5F /* popup.html */; };
 		07792A4DCF88CF4FB361FDAD /* DownloadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA232EBC90C29DD738F1E3E /* DownloadStore.swift */; };
 		151B1283A95CE6C3744174FF /* SegmentedDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA15CED2682BF59E18C3E09 /* SegmentedDownloader.swift */; };
@@ -90,6 +91,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A10000000000000000000002 /* TorrentDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentDownloader.swift; sourceTree = "<group>"; };
 		039A6DF1CFE03501E9B0A401 /* BrowserIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserIntegration.swift; sourceTree = "<group>"; };
 		054B3261F9ECB1DD226D703B /* MCDownloadManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MCDownloadManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		07140FDF4FFB084659EE61A2 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
@@ -277,6 +279,7 @@
 				FFA232EBC90C29DD738F1E3E /* DownloadStore.swift */,
 				CDA15CED2682BF59E18C3E09 /* SegmentedDownloader.swift */,
 				5B96EDDD486AAAA976EDFCDA /* VideoDownloader.swift */,
+				A10000000000000000000002 /* TorrentDownloader.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -473,6 +476,7 @@
 				EA0BD54DF6C5AE59D386CDBB /* ToolInstaller.swift in Sources */,
 				4F8297DE8356AAF844B0E183 /* UpdateChecker.swift in Sources */,
 				194CA2E24934630B92414AA3 /* VideoDownloader.swift in Sources */,
+				A10000000000000000000001 /* TorrentDownloader.swift in Sources */,
 				D9ECABE0BFCE0514E59109C3 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

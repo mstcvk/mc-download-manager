@@ -138,3 +138,13 @@ Issue ve pull request'ler memnuniyetle karşılanır. Çeviriler `App/Resources/
 Kod MIT lisanslıdır (bkz. `LICENSE`). Gömülü ikililer kendi lisanslarına tabidir:
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) ve [FFmpeg](https://ffmpeg.org) (martin-riedl.de statik derlemesi, GPL).
 GPL'li ffmpeg ikilisi ile dağıtım yapıyorsanız kaynak erişimi yükümlülüğünü göz önünde bulundurun ya da `scripts/fetch-tools.sh` içindeki URL'yi LGPL bir derlemeyle değiştirin.
+
+### Magnet bağlantısıyla indirme
+
+[aria2](https://aria2.github.io/) aracını `brew install aria2` komutuyla kurun. **Yeni İndirme** penceresine BitTorrent v1 `magnet:?xt=urn:btih:…` bağlantısını yapıştırın (her satıra bir bağlantı). Ana pencerede yapıştırma da desteklenir. `.torrent` dosyasını içe aktarıp indirilecek dosyaları seçmek için **Torrent Dosyası Aç…** düğmesini kullanın. Video seçeneği açık olsa bile magnet bağlantıları otomatik tanınır.
+
+Her torrent, ayarlardaki indirme dizininde ayrı bir `Torrent-<indirme kimliği>` klasörüne indirilir. Önce dosya listesi alınır; ad ve boyutları görüp indirilecek dosyaları seçebilirsiniz. Duraklatma/devam etme, aria2 kontrol dosyalarını korur; uygulama yeniden açıldığında kayıtlar duraklatılmış olarak yüklenir. İndirme sırasında parçalar diğer eşlere yüklenir; indirme tamamlanınca paylaşım durur. İptal etme/listeden kaldırma, kısmi torrent dosyalarını korur; gerekmeyen klasörleri Finder üzerinden silebilirsiniz. **Ayarlar → Genel → Magnet bağlantıları → Magnet bağlantılarını MC ile aç** düğmesiyle MC’yi varsayılan uygulama yapabilirsiniz (macOS onay isteyebilir). Ardından tarayıcıdaki magnet bağlantıları MC’ye açılır; tarayıcı ayrıca izin isteyebilir. `.torrent` dosyalarını **Dosya → Torrent Dosyası Aç…** menüsünden veya Finder’daki **Birlikte Aç** menüsünden açabilirsiniz. Dosyaya çift tıklayınca MC’nin açılması için Finder’da **Bilgi Ver → Birlikte Aç → Tümünü Değiştir** seçeneğini kullanın; MC alternatif işleyici olarak kaydedilir ve mevcut varsayılanı kendiliğinden değiştirmez. Yalnızca BitTorrent v2 bağlantıları desteklenmez. Dosya seçimleri duraklatma/devam etme ve yeniden başlatma boyunca saklanır. Seçilmeyen dosyalarda doğrulama için gereken küçük ortak parçalar bulunabilir; bu parçalar korunur.
+
+Doğrulama testlerini çalıştırmak için: `sh scripts/test-torrent.sh`.
+
+Gerçek magnet aktarımı, duraklatma/devam etme ve SHA-256 kontrolü için `python3 tests/torrent-integration/run.py` çalıştırın (aria2 ve Xcode komut satırı araçları gerekir). Test, 8 MiB boyutunda torrent, yerel tracker ve paylaşan eş oluşturur; geçici dosyaları bitince temizler.

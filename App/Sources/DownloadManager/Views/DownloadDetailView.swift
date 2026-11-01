@@ -16,6 +16,11 @@ struct DownloadDetailView: View {
             Group {
                 if item.state == .completed {
                     completedView(item)
+                } else if let files = item.torrentFiles, item.selectedTorrentFiles == nil, item.state != .failed {
+                    TorrentFileSelectionView(item: item, files: files,
+                        onSelect: { store.selectTorrentFiles(item.id, indices: $0) },
+                        onLater: { DetailWindowManager.shared.close(id: item.id) })
+                        .id(item.id)
                 } else {
                     activeView(item)
                 }
@@ -63,7 +68,21 @@ struct DownloadDetailView: View {
             }
             if showDetails {
                 Divider()
-                if item.kind == .video {
+                if item.kind == .torrent, let files = item.torrentFiles {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 6) {
+                            ForEach(files) { file in
+                                HStack {
+                                    Image(systemName: item.selectedTorrentFiles?.contains(file.id) == true ? "checkmark.square" : "square")
+                                    Text(file.path).textSelection(.enabled)
+                                    Spacer()
+                                    Text(Fmt.size(file.length)).foregroundStyle(.secondary)
+                                }
+                            }
+                        }.font(.caption)
+                    }.frame(maxHeight: 150)
+                    logView(item)
+                } else if item.kind != .file {
                     logView(item)
                 } else {
                     connections(item)
@@ -102,11 +121,11 @@ struct DownloadDetailView: View {
             }
             GridRow {
                 Text("Resume capability").foregroundStyle(.secondary)
-                Text(item.kind == .video ? "yt-dlp" : (item.supportsRanges ? String(localized: "Yes") : (item.state == .queued || item.state == .probing ? "?" : String(localized: "No"))))
+                Text(item.kind == .torrent ? "aria2c" : item.kind == .video ? "yt-dlp" : (item.supportsRanges ? String(localized: "Yes") : (item.state == .queued || item.state == .probing ? "?" : String(localized: "No"))))
             }
             GridRow {
                 Text("Save to").foregroundStyle(.secondary)
-                Text(item.finalPath ?? store.destinationURL(for: item).path).lineLimit(1).truncationMode(.middle)
+                Text(item.finalPath ?? (item.kind == .torrent ? store.destinationDirectory(for: item).path : store.destinationURL(for: item).path)).lineLimit(1).truncationMode(.middle)
             }
         }
         .font(.callout.monospacedDigit())
@@ -119,6 +138,7 @@ struct DownloadDetailView: View {
             if item.kind == .video { return item.stage.isEmpty ? String(localized: "Downloading with yt-dlp…") : item.stage }
             return String(localized: "Receiving data…")
         case .failed: return item.errorMessage ?? String(localized: "Error")
+        case .probing where item.kind == .torrent && !item.stage.isEmpty: return item.stage
         default: return item.state.label
         }
     }
@@ -334,11 +354,10 @@ final class DetailWindowManager {
 
     func show(id: UUID, store: DownloadStore) {
         AppPresence.shared.showInDock()
-        let hadList = showsList
         if !model.tracked.contains(id) { model.tracked.append(id) }
         model.selected = id
         if let w = window {
-            if showsList != hadList { layout(store: store, animate: true) }
+            layout(store: store, animate: true)
             w.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -408,7 +427,8 @@ final class DetailWindowManager {
         let width = Self.detailWidth + (showsList ? Self.listWidth : 0)
         var height = Self.fullHeight
         if !showsList, let id = model.tracked.first, let item = store.items.first(where: { $0.id == id }) {
-            height = item.state == .completed ? Self.completedHeight : (compact ? Self.compactHeight : Self.fullHeight)
+            let choosingFiles = item.torrentFiles != nil && item.selectedTorrentFiles == nil
+            height = item.state == .completed ? Self.completedHeight : (compact && !choosingFiles ? Self.compactHeight : Self.fullHeight)
         }
         w.contentMinSize = NSSize(width: width, height: min(height, Self.completedHeight))
         var frame = w.frame
@@ -444,5 +464,54 @@ final class DetailWindowManager {
             title = pct + String(localized: "\(shown.count) downloads")
         }
         if w.title != title { w.title = title }
+    }
+}
+
+struct TorrentFileSelectionView: View {
+    let item: DownloadItem
+    let files: [TorrentFile]
+    let onSelect: (Set<Int>) -> Void
+    let onLater: () -> Void
+    @State private var selected: Set<Int> = []
+
+    private var selectedBytes: Int64 {
+        files.filter { selected.contains($0.id) }.reduce(0) { $0 + $1.length }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Choose torrent files").font(.title2.bold())
+            Text(item.fileName).foregroundStyle(.secondary).lineLimit(2)
+            HStack {
+                Button("Select All") { selected = Set(files.map(\.id)) }
+                Button("Deselect All") { selected.removeAll() }
+                Spacer()
+                Text("\(selected.count) files · \(Fmt.size(selectedBytes))")
+            }.font(.callout)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(files) { file in
+                        Toggle(isOn: Binding(
+                            get: { selected.contains(file.id) },
+                            set: { if $0 { selected.insert(file.id) } else { selected.remove(file.id) } })) {
+                                HStack(alignment: .top) {
+                                    Text(file.path).fixedSize(horizontal: false, vertical: true)
+                                    Spacer()
+                                    Text(Fmt.size(file.length)).foregroundStyle(.secondary)
+                                }
+                            }.toggleStyle(.checkbox)
+                    }
+                }.padding(4)
+            }.frame(height: 260)
+            Text("Unselected files may contain small shared pieces needed to verify selected files.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("Later", action: onLater)
+                Spacer()
+                Button("Download Selected Files") { onSelect(selected) }
+                    .keyboardShortcut(.defaultAction).disabled(selected.isEmpty)
+            }
+        }
+        .onAppear { selected = Set(files.map(\.id)) }
     }
 }

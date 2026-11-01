@@ -25,6 +25,7 @@ final class DownloadStore: ObservableObject {
 
     let settings: AppSettings
     private var downloaders: [UUID: SegmentedDownloader] = [:]
+    private var torrentProcesses: [UUID: Process] = [:]
     private var videoProcesses: [UUID: Process] = [:]
     /// yt-dlp downloads several files (video, audio): bytes completed in earlier phases + approx total.
     private var videoPhase: [UUID: (base: Int64, lastDownloaded: Int64, approxTotal: Int64)] = [:]
@@ -46,10 +47,10 @@ final class DownloadStore: ObservableObject {
     private let supportDir: URL
     private let storeURL: URL
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, supportDirectory: URL? = nil) {
         self.settings = settings
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        supportDir = base.appendingPathComponent("MC Download Manager", isDirectory: true)
+        supportDir = supportDirectory ?? base.appendingPathComponent("MC Download Manager", isDirectory: true)
         try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
         storeURL = supportDir.appendingPathComponent("downloads.json")
         load()
@@ -60,6 +61,7 @@ final class DownloadStore: ObservableObject {
 
     /// Final folder for an item: base folder, plus a category subfolder when enabled.
     func destinationDirectory(for item: DownloadItem) -> URL {
+        if item.kind == .torrent { return TorrentDownloader.directory(for: item) }
         guard settings.organizeByCategory else { return item.directory }
         return item.directory.appendingPathComponent(item.category.label, isDirectory: true)
     }
@@ -73,9 +75,9 @@ final class DownloadStore: ObservableObject {
     var overallProgress: Double? {
         let measurable = items.filter { $0.state.isActive && $0.totalBytes > 0 }
         guard !measurable.isEmpty else { return nil }
-        let total = measurable.reduce(Int64(0)) { $0 + $1.totalBytes }
-        let received = measurable.reduce(Int64(0)) { $0 + min($1.receivedBytes, $1.totalBytes) }
-        return total > 0 ? Double(received) / Double(total) : nil
+        let total = measurable.reduce(0.0) { $0 + Double($1.totalBytes) }
+        let received = measurable.reduce(0.0) { $0 + Double(min($1.receivedBytes, $1.totalBytes)) }
+        return total > 0 ? received / total : nil
     }
 
     /// Touches the download folder so macOS asks for Downloads-folder access now (first run / setup),
@@ -100,6 +102,8 @@ final class DownloadStore: ObservableObject {
 
     @discardableResult
     func add(_ req: NewDownloadRequest) -> DownloadItem {
+        var req = req
+        if req.url.scheme?.lowercased() == "magnet" { req.kind = .torrent }
         var headers = req.extraHeaders
         if let r = req.referer, !r.isEmpty { headers["Referer"] = r }
         if let ua = req.userAgent, !ua.isEmpty { headers["User-Agent"] = ua }
@@ -108,6 +112,7 @@ final class DownloadStore: ObservableObject {
 
         var name = req.fileName.flatMap { $0.isEmpty ? nil : $0 } ?? Self.fileName(from: req.url)
         if req.kind == .video { name = req.url.host ?? "video" }
+        if req.kind == .torrent { name = TorrentDownloader.name(for: req.url) }
         name = Self.sanitize(name)
 
         var item = DownloadItem(url: req.url, fileName: name,
@@ -127,10 +132,32 @@ final class DownloadStore: ObservableObject {
         return item
     }
 
+    @discardableResult
+    func importTorrent(_ source: URL) throws -> DownloadItem {
+        let data = try TorrentDownloader.metadataData(at: source)
+        let files = try TorrentDownloader.files(in: data)
+        var item = DownloadItem(url: source, fileName: Self.sanitize(files[0].path.components(separatedBy: "/")[0]),
+                                directory: URL(fileURLWithPath: settings.downloadDirectory), kind: .torrent)
+        item.torrentFiles = files
+        item.state = .paused
+        let directory = TorrentDownloader.metadataDirectory(for: item)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: directory.appendingPathComponent("import.torrent"), options: .atomic)
+        } catch {
+            try? FileManager.default.removeItem(at: TorrentDownloader.directory(for: item))
+            throw error
+        }
+        items.insert(item, at: 0)
+        scheduleSave()
+        DetailWindowManager.shared.show(id: item.id, store: self)
+        return item
+    }
+
     func addURLs(_ text: String, kind: DownloadKind, segments: Int? = nil) {
         for line in text.split(whereSeparator: \.isNewline) {
             let s = line.trimmingCharacters(in: .whitespaces)
-            guard let url = URL(string: s), let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else { continue }
+            guard let url = URL(string: s), TorrentDownloader.accepts(url) else { continue }
             var r = NewDownloadRequest(url: url)
             r.kind = kind
             r.segments = segments
@@ -142,16 +169,140 @@ final class DownloadStore: ObservableObject {
 
     func pumpQueue() {
         var slots = max(0, settings.maxConcurrent - activeCount)
-        for item in items.reversed() where item.state == .queued && slots > 0 {
+        for item in items.reversed() where item.state == .queued && torrentProcesses[item.id] == nil && slots > 0 {
             startItem(item.id)
-            slots -= 1
+            slots = max(0, settings.maxConcurrent - activeCount)
         }
     }
 
     private func startItem(_ id: UUID) {
         guard let i = index(of: id) else { return }
         let item = items[i]
-        if item.kind == .video { startVideo(item) } else { startFile(item) }
+        guard torrentProcesses[id] == nil else { return }
+        if item.kind == .torrent { startTorrent(item) }
+        else if item.kind == .video { startVideo(item) } else { startFile(item) }
+    }
+
+    private func startTorrent(_ item: DownloadItem) {
+        let id = item.id
+        if item.url.isFileURL {
+            do {
+                let metadata = try TorrentDownloader.metadataFile(in: TorrentDownloader.metadataDirectory(for: item))
+                let files = try TorrentDownloader.files(in: TorrentDownloader.metadataData(at: metadata))
+                guard files == item.torrentFiles else {
+                    throw DownloadFailure(message: String(localized: "Invalid or unsupported torrent metadata."))
+                }
+            } catch {
+                update(id) { $0.state = .failed; $0.errorMessage = error.localizedDescription }
+                scheduleSave()
+                DispatchQueue.main.async { [weak self] in self?.pumpQueue() }
+                return
+            }
+        }
+        if item.torrentFiles != nil && item.selectedTorrentFiles == nil {
+            update(id) { $0.state = .paused }
+            DetailWindowManager.shared.show(id: id, store: self)
+            return
+        }
+        let metadataFile = try? TorrentDownloader.metadataFile(in: TorrentDownloader.metadataDirectory(for: item))
+        let metadataOnly = metadataFile == nil || item.torrentFiles == nil
+        update(id) {
+            $0.state = .probing; $0.errorMessage = nil; $0.speed = 0; $0.log = ""
+            $0.stage = metadataOnly ? String(localized: "Fetching torrent file list…") : ""
+        }
+        do {
+            guard item.url.isFileURL || TorrentDownloader.isMagnet(item.url) else {
+                throw DownloadFailure(message: String(localized: "Invalid BitTorrent v1 magnet link."))
+            }
+            guard let executable = TorrentDownloader.locate() else {
+                throw DownloadFailure(message: String(localized: "aria2c is required for torrents. Install it with Homebrew: brew install aria2, then resume this download."))
+            }
+            torrentProcesses[id] = try TorrentDownloader.launch(
+                executable: executable, url: metadataOnly ? item.url : metadataFile!,
+                directory: metadataOnly ? TorrentDownloader.metadataDirectory(for: item) : TorrentDownloader.directory(for: item),
+                metadataOnly: metadataOnly, selectedFiles: metadataOnly ? nil : item.selectedTorrentFiles,
+                onLine: { [weak self] line in
+                    guard let self else { return }
+                    self.update(id) {
+                        $0.log = String(($0.log + line + "\n").suffix(6000))
+                        guard !metadataOnly, $0.state.isActive, let p = TorrentDownloader.progress(in: line) else { return }
+                        $0.state = .downloading
+                        $0.receivedBytes = p.received
+                        $0.totalBytes = p.total
+                        $0.speed = p.speed
+                    }
+                },
+                onFinish: { [weak self] status in self?.finishTorrent(id, status: status, metadataOnly: metadataOnly) })
+        } catch {
+            update(id) { $0.state = .failed; $0.errorMessage = error.localizedDescription }
+            DispatchQueue.main.async { [weak self] in self?.pumpQueue() }
+        }
+        scheduleSave()
+    }
+
+    func selectTorrentFiles(_ id: UUID, indices: Set<Int>) {
+        guard let item = items.first(where: { $0.id == id }), item.kind == .torrent,
+              let files = item.torrentFiles, !indices.isEmpty,
+              indices.isSubset(of: Set(files.map(\.id))), torrentProcesses[id] == nil,
+              item.selectedTorrentFiles == nil else { return }
+        update(id) {
+            $0.selectedTorrentFiles = indices.sorted()
+            $0.totalBytes = files.filter { indices.contains($0.id) }.reduce(0) { $0 + $1.length }
+            $0.receivedBytes = 0
+            $0.state = .queued
+            $0.stage = ""
+        }
+        scheduleSave()
+        pumpQueue()
+    }
+
+    private func finishTorrent(_ id: UUID, status: Int32, metadataOnly: Bool) {
+        torrentProcesses[id] = nil
+        defer { scheduleSave(); pumpQueue() }
+        guard let i = index(of: id), items[i].state.isActive else { return }
+        var item = items[i]
+        item.speed = 0
+        if status == 0 && metadataOnly {
+            do {
+                let metadata = try TorrentDownloader.metadataFile(in: TorrentDownloader.metadataDirectory(for: item))
+                let files = try TorrentDownloader.files(in: TorrentDownloader.metadataData(at: metadata))
+                if item.torrentFiles != files { item.selectedTorrentFiles = nil }
+                item.torrentFiles = files
+                item.state = item.selectedTorrentFiles == nil ? .paused : .queued
+                item.stage = ""
+                items[i] = item
+                if item.selectedTorrentFiles == nil { DetailWindowManager.shared.show(id: id, store: self) }
+            } catch {
+                item.state = .failed
+                item.errorMessage = error.localizedDescription
+                items[i] = item
+            }
+            return
+        }
+        if status == 0 {
+            let directory = TorrentDownloader.directory(for: item)
+            // Quarantine every payload file, including files in multi-file torrents.
+            if let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) {
+                for case let file as URL in files {
+                    if file.lastPathComponent == ".metadata" { files.skipDescendants(); continue }
+                    let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                    if values?.isRegularFile == true, values?.isSymbolicLink != true {
+                        Self.applyQuarantine(to: file, source: item.url)
+                    }
+                }
+            }
+            item.finalPath = directory.path
+            item.state = .completed
+            item.completedAt = Date()
+            if item.totalBytes > 0 { item.receivedBytes = item.totalBytes }
+            items[i] = item
+            notifyCompleted(item)
+            DetailWindowManager.shared.didComplete(id: id, autoClose: settings.autoCloseDetail)
+        } else {
+            item.state = .failed
+            item.errorMessage = String(localized: "aria2c exited with code \(status). See the download log for details.")
+            items[i] = item
+        }
     }
 
     private func startFile(_ item: DownloadItem) {
@@ -518,6 +669,7 @@ final class DownloadStore: ObservableObject {
     func pause(_ id: UUID) {
         guard let i = index(of: id), items[i].state.isActive || items[i].state == .queued else { return }
         update(id) { $0.state = .paused; $0.speed = 0 }
+        if let p = torrentProcesses[id], p.isRunning { p.terminate() }
         downloaders[id]?.stop()
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
         scheduleSave()
@@ -541,6 +693,7 @@ final class DownloadStore: ObservableObject {
     func cancel(_ id: UUID) {
         guard let i = index(of: id) else { return }
         let item = items[i]
+        if let p = torrentProcesses[id], p.isRunning { p.terminate() }
         if let dl = downloaders.removeValue(forKey: id) { dl.stop() }
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
         try? FileManager.default.removeItem(at: item.partURL)
@@ -552,6 +705,7 @@ final class DownloadStore: ObservableObject {
     func remove(_ id: UUID, deleteFile: Bool = false) {
         guard let i = index(of: id) else { return }
         let item = items[i]
+        if let p = torrentProcesses[id], p.isRunning { p.terminate() }
         if let dl = downloaders.removeValue(forKey: id) { dl.stop() }
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
         try? FileManager.default.removeItem(at: item.partURL)
@@ -590,6 +744,7 @@ final class DownloadStore: ObservableObject {
 
     func shutdown() {
         pauseAll()
+        for process in torrentProcesses.values { process.waitUntilExit() }
         save()
     }
 
@@ -598,7 +753,7 @@ final class DownloadStore: ObservableObject {
     private func tick() {
         let now = Date()
         var activeIDs = Set<UUID>()
-        for i in items.indices where items[i].state == .downloading && items[i].kind != .video {
+        for i in items.indices where items[i].state == .downloading && items[i].kind == .file {
             let id = items[i].id
             activeIDs.insert(id)
             let bytes = items[i].receivedBytes
