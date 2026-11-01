@@ -3,6 +3,7 @@ import Foundation
 enum DownloadKind: String, Codable {
     case file
     case video
+    case torrent
 }
 
 enum DownloadState: String, Codable {
@@ -32,6 +33,12 @@ struct SegmentInfo: Codable, Equatable {
     var isDone: Bool { received >= length }
 }
 
+struct TorrentFile: Identifiable, Codable, Equatable {
+    var id: Int
+    var path: String
+    var length: Int64
+}
+
 struct DownloadItem: Identifiable, Codable, Equatable {
     var id = UUID()
     var url: URL
@@ -52,6 +59,9 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var requestedSegments: Int = 0      // 0 = ayarlardaki değer
     var sourceBrowser: String? = nil    // extension that sent it (chrome, brave, opera, edge, firefox, safari)
 
+    var torrentFiles: [TorrentFile]? = nil
+    var selectedTorrentFiles: [Int]? = nil
+
     // Kalıcı olmayan alanlar
     var speed: Double = 0
     var log: String = ""
@@ -60,7 +70,7 @@ struct DownloadItem: Identifiable, Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, url, fileName, directory, kind, state, totalBytes, receivedBytes, supportsRanges,
-             segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser
+             segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser, torrentFiles, selectedTorrentFiles
     }
 
     var destinationURL: URL { directory.appendingPathComponent(fileName) }

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UserNotifications
+import UniformTypeIdentifiers
 
 /// Shared model objects, created once before the first App body evaluation.
 final class AppCore {
@@ -64,6 +65,8 @@ extension Scene {
             CommandGroup(replacing: .newItem) {
                 Button("New Download…") { NotificationCenter.default.post(name: .showAddSheet, object: nil) }
                     .keyboardShortcut("n")
+                Button("Open Torrent File…") { AppDelegate.openTorrentFile() }
+                    .keyboardShortcut("o")
             }
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { UpdateChecker.shared.check(interactive: true) }
@@ -168,6 +171,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             let center = UNUserNotificationCenter.current()
             center.delegate = self
             center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let store = Self.sharedStore ?? AppCore.shared.store
+        for url in urls {
+            if TorrentDownloader.isMagnet(url) {
+                if let existing = store.items.first(where: { $0.url == url && $0.state != .cancelled && $0.state != .failed }) {
+                    DetailWindowManager.shared.show(id: existing.id, store: store)
+                } else {
+                    var request = NewDownloadRequest(url: url)
+                    request.kind = .torrent
+                    let item = store.add(request)
+                    DetailWindowManager.shared.show(id: item.id, store: store)
+                }
+            } else if url.isFileURL && url.pathExtension.lowercased() == "torrent" {
+                Self.importTorrent(url)
+            }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    static func openTorrentFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "torrent") ?? .data]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url { importTorrent(url) }
+    }
+
+    private static func importTorrent(_ url: URL) {
+        do {
+            _ = try (sharedStore ?? AppCore.shared.store).importTorrent(url)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = NSLocalizedString("Couldn’t import torrent file", comment: "")
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: NSLocalizedString("OK", comment: ""))
+            alert.runModal()
         }
     }
 

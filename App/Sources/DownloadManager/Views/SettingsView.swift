@@ -24,6 +24,8 @@ struct GeneralSettings: View {
     @ObservedObject private var updater = UpdateChecker.shared
     @State private var launchAtLogin = LoginItem.isEnabled
     @State private var loginError: String?
+    @State private var magnetMessage: String?
+    @State private var settingMagnetHandler = false
 
     var body: some View {
         Form {
@@ -37,6 +39,18 @@ struct GeneralSettings: View {
                     }
                 }
                 Toggle("Organize downloads into category subfolders (Video, Music, Archives…)", isOn: $settings.organizeByCategory)
+            }
+            Section("Magnet links") {
+                Button("Use MC for magnet links") {
+                    settingMagnetHandler = true
+                    NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: "magnet") { error in
+                        DispatchQueue.main.async {
+                            settingMagnetHandler = false
+                            magnetMessage = error?.localizedDescription ?? String(localized: "MC now opens magnet links. Your browser may ask before opening the app.")
+                        }
+                    }
+                }.disabled(settingMagnetHandler)
+                if let magnetMessage { Text(magnetMessage).font(.caption).textSelection(.enabled) }
             }
             Section("Connections") {
                 Slider(value: Binding(get: { Double(settings.segmentCount) },

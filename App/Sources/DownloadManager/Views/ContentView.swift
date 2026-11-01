@@ -117,6 +117,9 @@ struct ContentView: View {
         ToolbarItemGroup(placement: .primaryAction) {
             Button { showAdd = true } label: { Label("Add URL", systemImage: "link.badge.plus") }
                 .help("Add a download by URL (⌘N)")
+            Button { AppDelegate.openTorrentFile() } label: { Label("Torrent", image: "Torrent") }
+                .help("Open a torrent file (⌘O)")
+                .accessibilityLabel("Open Torrent File…")
             Button { store.resumeAll() } label: { Label("Start Queue", systemImage: "play") }
                 .help("Resume paused and failed downloads")
             Button { store.pauseAll() } label: { Label("Stop All", systemImage: "stop") }

@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-/// Watches the system clipboard for http(s) links and asks the user whether to download them.
+/// Watches the system clipboard for HTTP(S) and magnet links and asks the user whether to download them.
 /// Also used by the ⌘V paste command in the main window.
 final class ClipboardWatcher {
     static let shared = ClipboardWatcher()
@@ -35,14 +35,14 @@ final class ClipboardWatcher {
         guard let onlyURLs = Self.urlOnlyContent(text) else { return }
         let exts = settings.captureExtensions
         let urls = onlyURLs
-            .filter { CaptureTypes.matches(url: $0, extensions: exts) }
+            .filter { TorrentDownloader.isMagnet($0) || CaptureTypes.matches(url: $0, extensions: exts) }
             .filter { !askedURLs.contains($0.absoluteString) }
         guard !urls.isEmpty else { return }
         remember(urls)
         ask(urls: urls, source: .clipboard)
     }
 
-    /// Called from the ⌘V paste command (explicit user action: any http(s) link is accepted).
+    /// Called from the ⌘V paste command (explicit user action: any HTTP(S) or valid magnet link is accepted).
     func handlePaste(text: String) {
         guard let urls = Self.urlOnlyContent(text), !urls.isEmpty else { return }
         remember(urls)
@@ -54,14 +54,13 @@ final class ClipboardWatcher {
         if askedURLs.count > 50 { askedURLs.removeFirst(askedURLs.count - 50) }
     }
 
-    /// Returns the links if every non-empty line of `text` is a single http(s) URL; nil otherwise.
+    /// Returns the links if every non-empty line of `text` is a single HTTP(S) URL or magnet link; nil otherwise.
     static func urlOnlyContent(_ text: String) -> [URL]? {
         let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard !lines.isEmpty, lines.count <= 50 else { return nil }
         var urls: [URL] = []
         for line in lines {
-            guard !line.contains(" "), let url = URL(string: line), let scheme = url.scheme?.lowercased(),
-                  ["http", "https"].contains(scheme), url.host != nil else { return nil }
+            guard !line.contains(" "), let url = URL(string: line), TorrentDownloader.accepts(url) else { return nil }
             if !urls.contains(url) { urls.append(url) }
         }
         return urls
@@ -71,8 +70,7 @@ final class ClipboardWatcher {
         var out: [URL] = []
         for token in text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }) {
             let s = token.trimmingCharacters(in: CharacterSet(charactersIn: "<>\"'()[]{},;"))
-            guard let url = URL(string: s), let scheme = url.scheme?.lowercased(),
-                  ["http", "https"].contains(scheme), url.host != nil else { continue }
+            guard let url = URL(string: s), TorrentDownloader.accepts(url) else { continue }
             if !out.contains(url) { out.append(url) }
         }
         return out
