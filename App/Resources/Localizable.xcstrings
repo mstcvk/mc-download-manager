@@ -3391,6 +3391,26 @@
           }
         }
       }
+    },
+    "Uploading to NAS…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS'a yükleniyor…"
+          }
+        }
+      }
+    },
+    "NAS upload complete ✓": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS yükleme tamamlandı ✓"
+          }
+        }
+      }
     }
   }
 }
