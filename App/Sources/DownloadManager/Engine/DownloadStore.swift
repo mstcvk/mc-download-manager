@@ -15,6 +15,7 @@ struct NewDownloadRequest {
     var extraHeaders: [String: String] = [:]
     var segments: Int? = nil
     var sourceBrowser: String? = nil
+    var nas: NASConfig? = nil
 
     init(url: URL) { self.url = url }
 }
@@ -116,6 +117,7 @@ final class DownloadStore: ObservableObject {
         item.headers = headers
         item.requestedSegments = req.segments ?? 0
         item.sourceBrowser = req.sourceBrowser
+        item.nas = req.nas
         if req.kind == .video, let cookies = req.cookies, !cookies.isEmpty {
             item.cookieFile = writeCookieFile(cookies, id: item.id)
         }
@@ -235,6 +237,22 @@ final class DownloadStore: ObservableObject {
                 item.speed = 0
                 if item.totalBytes <= 0 { item.totalBytes = item.receivedBytes }
                 items[i] = item
+                // NAS'a yükleme
+                if let nasConfig = item.nas, nasConfig.enabled {
+                    update(id) { $0.stage = String(localized: "Uploading to NAS…") }
+                    NASUploader.upload(file: dest, config: nasConfig) { [weak self] uploadResult in
+                        DispatchQueue.main.async {
+                            guard let self else { return }
+                            switch uploadResult {
+                            case .success:
+                                self.update(id) { $0.stage = String(localized: "NAS upload complete ✓") }
+                            case .failure(let err):
+                                self.update(id) { $0.stage = String(localized: "NAS upload failed: \(err.localizedDescription)") }
+                            }
+                            self.scheduleSave()
+                        }
+                    }
+                }
                 notifyCompleted(item)
                 DetailWindowManager.shared.didComplete(id: id, autoClose: settings.autoCloseDetail)
             } catch {
@@ -449,6 +467,22 @@ final class DownloadStore: ObservableObject {
                 item.receivedBytes = item.totalBytes
             }
             items[i] = item
+            // NAS'a yükleme (video)
+            if let nasConfig = item.nas, nasConfig.enabled, let path = item.finalPath {
+                update(id) { $0.stage = String(localized: "Uploading to NAS…") }
+                NASUploader.upload(file: URL(fileURLWithPath: path), config: nasConfig) { [weak self] uploadResult in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        switch uploadResult {
+                        case .success:
+                            self.update(id) { $0.stage = String(localized: "NAS upload complete ✓") }
+                        case .failure(let err):
+                            self.update(id) { $0.stage = String(localized: "NAS upload failed: \(err.localizedDescription)") }
+                        }
+                        self.scheduleSave()
+                    }
+                }
+            }
             notifyCompleted(item)
             DetailWindowManager.shared.didComplete(id: id, autoClose: settings.autoCloseDetail)
         case .failure(let e):

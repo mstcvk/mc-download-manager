@@ -237,6 +237,10 @@ final class ServerController: ObservableObject {
             if let s = obj["segments"] as? Int { r.segments = s }
             let browser = Self.browserName(req)
             if browser != "other" { r.sourceBrowser = browser }
+            // NAS hedefi
+            if let nasDict = obj["nas"] as? [String: Any], let nasConfig = NASConfig.from(nasDict) {
+                r.nas = nasConfig
+            }
             let item = store.add(r)
             return .json(["ok": true, "id": item.id.uuidString])
 
@@ -263,6 +267,14 @@ final class ServerController: ObservableObject {
             default: return .json(["ok": false, "error": "unknown action"], status: 400)
             }
             return .json(["ok": true])
+
+        case ("POST", "/nas/test"):
+            guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any],
+                  let config = NASConfig.from(obj) else {
+                return .json(["ok": false, "error": "NAS config required"], status: 400)
+            }
+            let result = NASUploader.testConnection(config)
+            return .json(["ok": result.ok, "error": result.error as Any])
 
         default:
             return .json(["ok": false, "error": "not found"], status: 404)
