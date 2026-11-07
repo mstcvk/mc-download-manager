@@ -189,5 +189,41 @@
   "popupReloadExt": {
     "message": "Update Now",
     "description": "Button: reload the unpacked extension from disk"
+  },
+  "popupNasTitle": {
+    "message": "NAS Settings"
+  },
+  "popupNasEnabled": {
+    "message": "Download to NAS"
+  },
+  "popupNasProtocol": {
+    "message": "Protocol"
+  },
+  "popupNasHost": {
+    "message": "NAS IP / Hostname"
+  },
+  "popupNasPort": {
+    "message": "Port (0 = default)"
+  },
+  "popupNasUser": {
+    "message": "Username"
+  },
+  "popupNasPass": {
+    "message": "Password"
+  },
+  "popupNasPath": {
+    "message": "Remote path"
+  },
+  "popupNasTest": {
+    "message": "Test Connection"
+  },
+  "popupNasTesting": {
+    "message": "Testing…"
+  },
+  "popupNasOk": {
+    "message": "Connected ✓"
+  },
+  "popupNasFail": {
+    "message": "Connection failed"
   }
 }

@@ -53,6 +53,26 @@
     <label><span data-i18n="popupPort">App port</span> <input type="number" id="port" min="1024" max="65535"></label>
     <label><span data-i18n="popupMinSize">Only capture downloads larger than (MB, 0 = all)</span> <input type="number" id="minSize" min="0"></label>
   </details>
+
+  <details id="nasDetails">
+    <summary data-i18n="popupNasTitle">NAS Settings</summary>
+    <label class="toggle"><input type="checkbox" id="nasEnabled"> <span data-i18n="popupNasEnabled">Download to NAS</span></label>
+    <label><span data-i18n="popupNasProtocol">Protocol</span>
+      <select id="nasProtocol">
+        <option value="smb">SMB</option>
+        <option value="ftp">FTP</option>
+        <option value="sftp">SFTP</option>
+        <option value="webdav">WebDAV</option>
+      </select>
+    </label>
+    <label><span data-i18n="popupNasHost">NAS IP / Hostname</span> <input type="text" id="nasHost" placeholder="192.168.1.100"></label>
+    <label><span data-i18n="popupNasPort">Port (0 = default)</span> <input type="number" id="nasPort" min="0" max="65535" value="0"></label>
+    <label><span data-i18n="popupNasUser">Username</span> <input type="text" id="nasUser"></label>
+    <label><span data-i18n="popupNasPass">Password</span> <input type="password" id="nasPass"></label>
+    <label><span data-i18n="popupNasPath">Remote path</span> <input type="text" id="nasPath" placeholder="/downloads"></label>
+    <button id="nasTest" class="small" data-i18n="popupNasTest">Test Connection</button>
+    <p id="nasStatus" class="muted hidden"></p>
+  </details>
   <script src="popup.js"></script>
 </body>
 </html>

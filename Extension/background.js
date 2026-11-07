@@ -7,7 +7,7 @@ const t = (k, subs) => { try { return api.i18n.getMessage(k, subs) || k; } catch
 const IS_FIREFOX = typeof browser !== 'undefined' && String(browser.runtime.getURL('')).startsWith('moz-extension:');
 const IS_SAFARI = !IS_FIREFOX && typeof browser !== 'undefined' && !!browser.runtime.sendNativeMessage && !chrome.downloads?.onDeterminingFilename;
 
-const DEFAULTS = { port: 48213, intercept: true, minSizeMB: 0, sniff: true, autoLaunch: true };
+const DEFAULTS = { port: 48213, intercept: true, minSizeMB: 0, sniff: true, autoLaunch: true, nasEnabled: false, nasProtocol: 'smb', nasHost: '', nasPort: 0, nasUser: '', nasPass: '', nasPath: '' };
 // Native messaging host bundled with the app (Chrome/Brave/Opera/Edge/Firefox); Safari talks to its app extension.
 const NATIVE_HOST = 'com.mesutcevik.mcdownloadmanager';
 const BROWSER = IS_FIREFOX ? 'firefox' : IS_SAFARI ? 'safari'
@@ -166,6 +166,16 @@ async function sendToApp({ url, filename, referer, kind }) {
     url, filename: filename || '', referer: referer || '', kind: kind || 'file',
     userAgent: navigator.userAgent, cookieHeader: ck.header, cookies: ck.list,
   };
+  if (settings.nasEnabled && settings.nasHost) {
+    payload.nas = {
+      protocol: settings.nasProtocol || 'smb',
+      host: settings.nasHost,
+      port: settings.nasPort || 0,
+      user: settings.nasUser || '',
+      pass: settings.nasPass || '',
+      path: settings.nasPath || '',
+    };
+  }
   const post = () => fetch(base(settings) + '/download', {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...BRIDGE_HEADERS }, body: JSON.stringify(payload),
   });
@@ -473,6 +483,15 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case 'launchApp': sendResponse({ ok: await launchApp() }); break;
         case 'reloadExtension': sendResponse({ ok: true }); setTimeout(() => api.runtime.reload(), 100); break;
         case 'setSite': sendResponse(await setSiteBrowserOnly(msg.host, !!msg.browserOnly)); break;
+        case 'nasTest': {
+          const s = await getSettings();
+          if (!s.nasHost) { sendResponse({ ok: false, error: 'No NAS host' }); break; }
+          try {
+            const j = await bridgeJSON('/nas/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ protocol: s.nasProtocol, host: s.nasHost, port: s.nasPort, user: s.nasUser, pass: s.nasPass, path: s.nasPath }) });
+            sendResponse(j);
+          } catch (e) { sendResponse({ ok: false, error: String(e) }); }
+          break;
+        }
         case 'pageMedia': {
           if (sender.tab) {
             for (const m of msg.items || []) {
