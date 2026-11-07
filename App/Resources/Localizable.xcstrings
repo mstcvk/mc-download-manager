@@ -3571,6 +3571,56 @@
           }
         }
       }
+    },
+    "Upload to NAS": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS'a Gönder"
+          }
+        }
+      }
+    },
+    "NAS: Off": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS: Kapalı"
+          }
+        }
+      }
+    },
+    "Click to toggle NAS upload": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS yüklemesini açıp kapatmak için tıklayın"
+          }
+        }
+      }
+    },
+    "NAS disabled — click to enable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS kapalı — etkinleştirmek için tıklayın"
+          }
+        }
+      }
+    },
+    "NAS active (%@://%@%@) — click to disable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS aktif (%1$@://%2$@%3$@) — kapatmak için tıklayın"
+          }
+        }
+      }
     }
   }
 }

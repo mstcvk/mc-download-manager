@@ -108,6 +108,16 @@ struct DownloadDetailView: View {
                 Text("Save to").foregroundStyle(.secondary)
                 Text(item.finalPath ?? store.destinationURL(for: item).path).lineLimit(1).truncationMode(.middle)
             }
+            if let nas = item.nas ?? settings.nasConfig, nas.enabled {
+                GridRow {
+                    Text("NAS").foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Image(systemName: "externaldrive.connected.to.line.below").foregroundStyle(.green)
+                        Text("\(nas.protocol.uppercased())://\(nas.host)\(nas.path.hasPrefix("/") ? nas.path : "/" + nas.path)")
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                }
+            }
         }
         .font(.callout.monospacedDigit())
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,6 +156,19 @@ struct DownloadDetailView: View {
                     Text("Location").foregroundStyle(.secondary)
                     Text(item.finalPath.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path } ?? store.destinationDirectory(for: item).path)
                         .lineLimit(1).truncationMode(.middle)
+                }
+                if let nas = item.nas ?? settings.nasConfig, nas.enabled {
+                    GridRow {
+                        Text("NAS").foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Image(systemName: "externaldrive.connected.to.line.below").foregroundStyle(.green)
+                            Text("\(nas.protocol.uppercased())://\(nas.host)\(nas.path.hasPrefix("/") ? nas.path : "/" + nas.path)")
+                                .lineLimit(1).truncationMode(.middle)
+                            if !item.stage.isEmpty {
+                                Text("(\(item.stage))").foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
                 GridRow {
                     Text("URL").foregroundStyle(.secondary)

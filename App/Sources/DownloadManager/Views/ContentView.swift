@@ -123,6 +123,15 @@ struct ContentView: View {
                 .help("Pause all downloads")
             Button { store.clearFinished() } label: { Label("Clear Finished", systemImage: "trash") }
                 .help("Remove completed and cancelled items from the list")
+            Button {
+                settings.nasEnabled.toggle()
+            } label: {
+                Label("NAS", systemImage: "externaldrive.connected.to.line.below")
+                    .foregroundStyle(settings.nasEnabled ? .green : .secondary)
+            }
+            .help(settings.nasEnabled
+                  ? String(localized: "NAS active (\(settings.nasProtocol.uppercased())://\(settings.nasHost)\(settings.nasPath)) — click to disable")
+                  : String(localized: "NAS disabled — click to enable"))
             if #available(macOS 14.0, *) {
                 SettingsLink { Label("Settings", systemImage: "gearshape") }
                     .help("Settings (⌘,)")
@@ -149,7 +158,13 @@ struct ContentView: View {
                         .frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.fileName).lineLimit(1).truncationMode(.middle)
-                        Text(item.category.label).font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Text(item.category.label)
+                            if (item.nas ?? settings.nasConfig)?.enabled == true {
+                                Text("• NAS").foregroundStyle(.green)
+                            }
+                        }
+                        .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 3)
@@ -227,6 +242,11 @@ struct ContentView: View {
                     Button("Show in Finder") { store.revealInFinder(item) }
                 }
             }
+            if items.contains(where: { $0.state == .completed }) && !settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty {
+                Button("Upload to NAS") {
+                    items.filter { $0.state == .completed }.forEach { store.uploadToNAS($0.id) }
+                }
+            }
             Divider()
             Button("Remove from List") { ids.forEach { store.remove($0) }; selection.subtract(ids) }
             if items.contains(where: { $0.state == .completed }) {
@@ -262,6 +282,20 @@ struct ContentView: View {
                 Text("Browser bridge is running").font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(server.statusText).font(.caption).foregroundStyle(.secondary)
+            }
+            if !settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty {
+                Divider().frame(height: 12)
+                HStack(spacing: 6) {
+                    Circle().fill(settings.nasEnabled ? Color.green : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
+                    Text(settings.nasEnabled
+                         ? "NAS: \(settings.nasProtocol.uppercased())://\(settings.nasHost)\(settings.nasPath.hasPrefix("/") ? settings.nasPath : "/" + settings.nasPath)"
+                         : String(localized: "NAS: Off"))
+                        .font(.caption)
+                        .foregroundStyle(settings.nasEnabled ? .primary : .secondary)
+                        .lineLimit(1)
+                }
+                .onTapGesture { settings.nasEnabled.toggle() }
+                .help(String(localized: "Click to toggle NAS upload"))
             }
             Spacer()
             Label("\(store.items.filter { !$0.isFinished }.count)", systemImage: "list.bullet")
@@ -315,7 +349,11 @@ struct StatusCell: View {
 
     private var text: String {
         switch item.state {
-        case .completed: return String(localized: "Completed")
+        case .completed:
+            if !item.stage.isEmpty && item.stage.localizedCaseInsensitiveContains("NAS") {
+                return item.stage
+            }
+            return String(localized: "Completed")
         case .queued: return String(localized: "Added")
         case .failed: return String(localized: "Error: \(item.errorMessage ?? "")")
         case .downloading, .paused, .probing:

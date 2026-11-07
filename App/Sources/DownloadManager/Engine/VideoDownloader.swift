@@ -145,6 +145,7 @@ enum VideoDownloader {
                     useCookies: Bool = true,
                     onProgress: @escaping (Progress) -> Void,
                     onLine: @escaping (String) -> Void,
+                    onFile: ((String) -> Void)? = nil,
                     onFinish: @escaping (Result<String?, Error>) -> Void) -> Process {
 
         let p = Process()
@@ -194,6 +195,7 @@ enum VideoDownloader {
             }
             if line.hasPrefix("/") && FileManager.default.fileExists(atPath: line) {
                 lock.lock(); finalPath = line; lock.unlock()
+                onFile?(line)
             }
             if isError && line.hasPrefix("ERROR") {
                 lock.lock(); lastError = line; lock.unlock()
