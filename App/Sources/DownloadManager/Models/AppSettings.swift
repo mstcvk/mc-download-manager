@@ -1,9 +1,12 @@
 import Foundation
 import Combine
+import Security
 
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
     private let defaults = UserDefaults.standard
+    private static let keychainService = "com.mesutcevik.mcdownloadmanager.nas"
+    private static let keychainAccount = "nasPassword"
 
     @Published var segmentCount: Int { didSet { defaults.set(segmentCount, forKey: "segmentCount") } }
     @Published var maxConcurrent: Int { didSet { defaults.set(maxConcurrent, forKey: "maxConcurrent") } }
@@ -34,6 +37,29 @@ final class AppSettings: ObservableObject {
 
     /// Sites whose downloads stay in the browser (hosts without "www."; subdomains match too).
     @Published var browserOnlySites: [String] { didSet { defaults.set(browserOnlySites, forKey: "browserOnlySites") } }
+
+    // MARK: - NAS Ayarları
+    @Published var nasEnabled: Bool { didSet { defaults.set(nasEnabled, forKey: "nasEnabled") } }
+    @Published var nasProtocol: String { didSet { defaults.set(nasProtocol, forKey: "nasProtocol") } }
+    @Published var nasHost: String { didSet { defaults.set(nasHost, forKey: "nasHost") } }
+    @Published var nasPort: Int { didSet { defaults.set(nasPort, forKey: "nasPort") } }
+    @Published var nasUser: String { didSet { defaults.set(nasUser, forKey: "nasUser") } }
+    @Published var nasPass: String { didSet { Self.saveKeychainPassword(nasPass) } }
+    @Published var nasPath: String { didSet { defaults.set(nasPath, forKey: "nasPath") } }
+    @Published var nasSyncExistingLocal: Bool { didSet { defaults.set(nasSyncExistingLocal, forKey: "nasSyncExistingLocal") } }
+    @Published var nasDeleteLocalAfterUpload: Bool { didSet { defaults.set(nasDeleteLocalAfterUpload, forKey: "nasDeleteLocalAfterUpload") } }
+
+    var nasConfig: NASConfig? {
+        guard nasEnabled else { return nil }
+        return NASConfig.from([
+            "protocol": nasProtocol,
+            "host": nasHost,
+            "port": nasPort,
+            "user": nasUser,
+            "pass": nasPass,
+            "path": nasPath,
+        ])
+    }
 
     static func siteKey(_ host: String?) -> String? {
         guard var h = host?.lowercased().trimmingCharacters(in: .whitespaces), !h.isEmpty else { return nil }
@@ -79,6 +105,42 @@ final class AppSettings: ObservableObject {
         loginItemAutoRegistered = defaults.object(forKey: "loginItemAutoRegistered") as? Bool ?? false
         denoPromptSuppressed = defaults.object(forKey: "denoPromptSuppressed") as? Bool ?? false
         browserOnlySites = defaults.stringArray(forKey: "browserOnlySites") ?? []
+        nasEnabled = defaults.object(forKey: "nasEnabled") as? Bool ?? false
+        nasProtocol = defaults.string(forKey: "nasProtocol") ?? "smb"
+        nasHost = defaults.string(forKey: "nasHost") ?? ""
+        nasPort = defaults.object(forKey: "nasPort") as? Int ?? 0
+        nasUser = defaults.string(forKey: "nasUser") ?? ""
+        nasPass = Self.loadKeychainPassword() ?? ""
+        nasPath = defaults.string(forKey: "nasPath") ?? ""
+        nasSyncExistingLocal = defaults.object(forKey: "nasSyncExistingLocal") as? Bool ?? true
+        nasDeleteLocalAfterUpload = defaults.object(forKey: "nasDeleteLocalAfterUpload") as? Bool ?? false
+    }
+
+    private static func saveKeychainPassword(_ password: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+        ]
+        SecItemDelete(query as CFDictionary)
+        guard !password.isEmpty, let data = password.data(using: .utf8) else { return }
+        var add = query
+        add[kSecValueData as String] = data
+        SecItemAdd(add as CFDictionary, nil)
+    }
+
+    private static func loadKeychainPassword() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     /// yt-dlp arguments for the chosen format/quality.

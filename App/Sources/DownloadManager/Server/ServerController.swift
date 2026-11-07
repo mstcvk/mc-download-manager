@@ -125,7 +125,11 @@ final class ServerController: ObservableObject {
         let port = UInt16(clamping: max(1024, min(65535, settings.serverPort)))
         let s = LocalServer(port: port) { [weak self] req, done in
             DispatchQueue.main.async {
-                done(self?.handle(req) ?? .json(["ok": false, "error": "shutting down"], status: 500))
+                guard let self else {
+                    done(.json(["ok": false, "error": "shutting down"], status: 500))
+                    return
+                }
+                self.handle(req, done: done)
             }
         }
         s.onStateChange = { [weak self] st in
@@ -180,17 +184,18 @@ final class ServerController: ObservableObject {
         return host == "127.0.0.1:\(port)" || host == "localhost:\(port)" || host == "[::1]:\(port)"
     }
 
-    private func handle(_ req: HTTPRequest) -> HTTPResponse {
+    private func handle(_ req: HTTPRequest, done: @escaping (HTTPResponse) -> Void) {
         guard Self.extensionRequest(req), hostAllowed(req.headers["host"]) else {
-            return .json(["ok": false, "error": "forbidden"], status: 403)
+            done(.json(["ok": false, "error": "forbidden"], status: 403))
+            return
         }
-        if req.method == "OPTIONS" { return .json(["ok": true]) }
+        if req.method == "OPTIONS" { done(.json(["ok": true])); return }
         noteConnection(req)
         let path = req.path.split(separator: "?", maxSplits: 1).first.map(String.init) ?? req.path
 
         switch (req.method, path) {
         case ("GET", "/ping"):
-            return .json([
+            done(.json([
                 "ok": true,
                 "app": "MCDownloadManager",
                 "version": Self.version,
@@ -202,7 +207,15 @@ final class ServerController: ObservableObject {
                 // Downloads from these sites stay in the browser: permanently, or for a few minutes after a hand-off.
                 "browserOnlySites": settings.browserOnlySites,
                 "bypassHosts": store.bypassHosts,
-            ])
+                "nas": [
+                    "enabled": settings.nasEnabled,
+                    "protocol": settings.nasProtocol,
+                    "host": settings.nasHost,
+                    "port": settings.nasPort,
+                    "user": settings.nasUser,
+                    "path": settings.nasPath,
+                ],
+            ]))
 
         case ("GET", "/downloads"):
             let list: [[String: Any]] = store.items.prefix(50).map {
@@ -217,14 +230,15 @@ final class ServerController: ObservableObject {
                     "stage": $0.stage,
                 ]
             }
-            return .json(["ok": true, "items": list])
+            done(.json(["ok": true, "items": list]))
 
         case ("POST", "/download"):
             guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any],
                   let urlStr = obj["url"] as? String,
                   let url = URL(string: urlStr),
                   let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else {
-                return .json(["ok": false, "error": "invalid url"], status: 400)
+                done(.json(["ok": false, "error": "invalid url"], status: 400))
+                return
             }
             var r = NewDownloadRequest(url: url)
             r.fileName = obj["filename"] as? String
@@ -237,35 +251,84 @@ final class ServerController: ObservableObject {
             if let s = obj["segments"] as? Int { r.segments = s }
             let browser = Self.browserName(req)
             if browser != "other" { r.sourceBrowser = browser }
+            // NAS hedefi
+            if let nasDict = obj["nas"] as? [String: Any], let nasConfig = NASConfig.from(nasDict) {
+                r.nas = nasConfig
+            }
             let item = store.add(r)
-            return .json(["ok": true, "id": item.id.uuidString])
+            done(.json(["ok": true, "id": item.id.uuidString]))
 
         case ("POST", "/site"):
             guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any],
                   let host = obj["host"] as? String, AppSettings.siteKey(host) != nil,
                   let on = obj["browserOnly"] as? Bool else {
-                return .json(["ok": false, "error": "host and browserOnly required"], status: 400)
+                done(.json(["ok": false, "error": "host and browserOnly required"], status: 400))
+                return
             }
             settings.setBrowserOnly(host, on)
-            return .json(["ok": true, "browserOnlySites": settings.browserOnlySites])
+            done(.json(["ok": true, "browserOnlySites": settings.browserOnlySites]))
 
         case ("POST", "/action"):
             guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any],
                   let idStr = obj["id"] as? String, let id = UUID(uuidString: idStr),
                   let action = obj["action"] as? String else {
-                return .json(["ok": false, "error": "id and action required"], status: 400)
+                done(.json(["ok": false, "error": "id and action required"], status: 400))
+                return
             }
             switch action {
             case "pause": store.pause(id)
             case "resume": store.resume(id)
             case "cancel": store.cancel(id)
             case "remove": store.remove(id)
-            default: return .json(["ok": false, "error": "unknown action"], status: 400)
+            default:
+                done(.json(["ok": false, "error": "unknown action"], status: 400))
+                return
             }
-            return .json(["ok": true])
+            done(.json(["ok": true]))
+
+        case ("POST", "/nas/test"):
+            guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any] else {
+                done(.json(["ok": false, "error": "NAS config required"], status: 400))
+                return
+            }
+            var merged = obj
+            if ((merged["pass"] as? String) ?? "").isEmpty && !settings.nasPass.isEmpty {
+                merged["pass"] = settings.nasPass
+            }
+            guard let config = NASConfig.from(merged) else {
+                done(.json(["ok": false, "error": "NAS config required"], status: 400))
+                return
+            }
+            // Eklentiden gelen NAS ayarlarını uygulama ayarlarıyla da senkronize et
+            settings.nasProtocol = config.protocol
+            settings.nasHost = config.host
+            settings.nasPort = config.port
+            settings.nasUser = config.user
+            if let p = obj["pass"] as? String, !p.isEmpty { settings.nasPass = p }
+            settings.nasPath = config.path
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = NASUploader.testConnection(config)
+                var payload: [String: Any] = ["ok": result.ok]
+                if let err = result.error, !err.isEmpty { payload["error"] = err }
+                done(.json(payload))
+            }
+
+        case ("POST", "/nas/settings"):
+            guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any] else {
+                done(.json(["ok": false, "error": "invalid body"], status: 400))
+                return
+            }
+            if let en = obj["nasEnabled"] as? Bool { settings.nasEnabled = en }
+            if let pr = obj["nasProtocol"] as? String { settings.nasProtocol = pr }
+            if let ho = obj["nasHost"] as? String { settings.nasHost = ho }
+            if let po = obj["nasPort"] as? Int { settings.nasPort = po }
+            if let us = obj["nasUser"] as? String { settings.nasUser = us }
+            if let pa = obj["nasPass"] as? String { settings.nasPass = pa }
+            if let pt = obj["nasPath"] as? String { settings.nasPath = pt }
+            done(.json(["ok": true]))
 
         default:
-            return .json(["ok": false, "error": "not found"], status: 404)
+            done(.json(["ok": false, "error": "not found"], status: 404))
         }
     }
 }

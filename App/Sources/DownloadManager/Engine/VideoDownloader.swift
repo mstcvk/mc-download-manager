@@ -145,6 +145,7 @@ enum VideoDownloader {
                     useCookies: Bool = true,
                     onProgress: @escaping (Progress) -> Void,
                     onLine: @escaping (String) -> Void,
+                    onFile: ((String) -> Void)? = nil,
                     onFinish: @escaping (Result<String?, Error>) -> Void) -> Process {
 
         let p = Process()
@@ -152,7 +153,7 @@ enum VideoDownloader {
         var args = [
             "--newline", "--no-playlist", "--no-colors", "--progress", "--no-simulate", "--no-mtime", "--no-quiet",
             "-N", "4",
-            "-o", outputDir.appendingPathComponent("%(title).150B [%(id)s].%(ext)s").path,
+            "-o", outputDir.appendingPathComponent("%(title).150B.%(ext)s").path,
             "--progress-template",
             "download:DMP|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s",
             "--print", "after_move:filepath",
@@ -194,6 +195,7 @@ enum VideoDownloader {
             }
             if line.hasPrefix("/") && FileManager.default.fileExists(atPath: line) {
                 lock.lock(); finalPath = line; lock.unlock()
+                onFile?(line)
             }
             if isError && line.hasPrefix("ERROR") {
                 lock.lock(); lastError = line; lock.unlock()

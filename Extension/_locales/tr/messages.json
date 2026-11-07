@@ -189,5 +189,41 @@
   "popupReloadExt": {
     "message": "Şimdi Güncelle",
     "description": "Button: reload the unpacked extension from disk"
+  },
+  "popupNasTitle": {
+    "message": "NAS Ayarları"
+  },
+  "popupNasEnabled": {
+    "message": "NAS'a indir"
+  },
+  "popupNasProtocol": {
+    "message": "Protokol"
+  },
+  "popupNasHost": {
+    "message": "NAS IP / Sunucu adı"
+  },
+  "popupNasPort": {
+    "message": "Port (0 = varsayılan)"
+  },
+  "popupNasUser": {
+    "message": "Kullanıcı adı"
+  },
+  "popupNasPass": {
+    "message": "Şifre"
+  },
+  "popupNasPath": {
+    "message": "Uzak dizin yolu"
+  },
+  "popupNasTest": {
+    "message": "Bağlantıyı Test Et"
+  },
+  "popupNasTesting": {
+    "message": "Test ediliyor…"
+  },
+  "popupNasOk": {
+    "message": "Bağlantı başarılı ✓"
+  },
+  "popupNasFail": {
+    "message": "Bağlantı başarısız"
   }
 }

@@ -54,6 +54,13 @@ async function refresh() {
     $('autoLaunch').checked = st.settings.autoLaunch !== false;
     $('port').value = st.settings.port;
     $('minSize').value = st.settings.minSizeMB || 0;
+    $('nasEnabled').checked = !!st.settings.nasEnabled;
+    $('nasProtocol').value = st.settings.nasProtocol || 'smb';
+    $('nasHost').value = st.settings.nasHost || '';
+    $('nasPort').value = st.settings.nasPort || 0;
+    $('nasUser').value = st.settings.nasUser || '';
+    $('nasPass').value = st.settings.nasPass || '';
+    $('nasPath').value = st.settings.nasPath || '';
   }
   // Per-site switch: downloads started on this site stay in the browser. The list lives in the app.
   tab = tab || (await currentTab());
@@ -198,6 +205,21 @@ $('siteBrowserOnly').onchange = async (e) => {
   refresh();
 };
 $('minSize').onchange = (e) => send({ type: 'setSettings', settings: { minSizeMB: parseInt(e.target.value, 10) || 0 } });
+$('nasEnabled').onchange = (e) => send({ type: 'setSettings', settings: { nasEnabled: e.target.checked } });
+$('nasProtocol').onchange = (e) => send({ type: 'setSettings', settings: { nasProtocol: e.target.value } });
+$('nasHost').onchange = (e) => send({ type: 'setSettings', settings: { nasHost: e.target.value.trim() } });
+$('nasPort').onchange = (e) => send({ type: 'setSettings', settings: { nasPort: parseInt(e.target.value, 10) || 0 } });
+$('nasUser').onchange = (e) => send({ type: 'setSettings', settings: { nasUser: e.target.value } });
+$('nasPass').onchange = (e) => send({ type: 'setSettings', settings: { nasPass: e.target.value } });
+$('nasPath').onchange = (e) => send({ type: 'setSettings', settings: { nasPath: e.target.value.trim() } });
+$('nasTest').onclick = async () => {
+  $('nasTest').disabled = true; $('nasTest').textContent = '…';
+  $('nasStatus').classList.remove('hidden');
+  $('nasStatus').textContent = t('popupNasTesting');
+  const r = await send({ type: 'nasTest' });
+  $('nasStatus').textContent = r && r.ok ? t('popupNasOk') : (r && r.error ? r.error : t('popupNasFail'));
+  $('nasTest').disabled = false; $('nasTest').textContent = t('popupNasTest');
+};
 
 refresh();
 loadMedia();

@@ -51,6 +51,7 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var finalPath: String? = nil
     var requestedSegments: Int = 0      // 0 = ayarlardaki değer
     var sourceBrowser: String? = nil    // extension that sent it (chrome, brave, opera, edge, firefox, safari)
+    var nas: NASConfig? = nil           // NAS hedefi (varsa indirme tamamlandığında dosya NAS'a yüklenir)
 
     // Kalıcı olmayan alanlar
     var speed: Double = 0
@@ -60,7 +61,7 @@ struct DownloadItem: Identifiable, Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, url, fileName, directory, kind, state, totalBytes, receivedBytes, supportsRanges,
-             segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser
+             segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser, nas
     }
 
     var destinationURL: URL { directory.appendingPathComponent(fileName) }
@@ -73,6 +74,59 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var eta: TimeInterval? {
         guard totalBytes > 0, speed > 1 else { return nil }
         return Double(totalBytes - receivedBytes) / speed
+    }
+}
+
+// MARK: - NAS
+
+struct NASConfig: Codable, Equatable {
+    var enabled: Bool = false
+    var `protocol`: String = "smb"      // smb, ftp, sftp, webdav
+    var host: String = ""
+    var port: Int = 0                   // 0 = varsayılan (SMB 445, FTP 21, SFTP 22, WebDAV 80/443)
+    var user: String = ""
+    var pass: String = ""               // bellekte tutulur, diske (downloads.json) yazılmaz
+    var path: String = ""               // /downloads gibi uzak dizin yolu
+
+    enum CodingKeys: String, CodingKey {
+        case enabled, `protocol`, host, port, user, path
+    }
+
+    var effectivePort: Int {
+        if port > 0 && port <= 65535 { return port }
+        switch `protocol` {
+        case "smb": return 445
+        case "ftp": return 21
+        case "sftp": return 22
+        case "webdav": return 443
+        default: return 0
+        }
+    }
+
+    private static let allowedProtocols: Set<String> = ["smb", "ftp", "sftp", "webdav"]
+    private static let hostPattern = "^[A-Za-z0-9]([A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$"
+
+    /// JSON sözlüğünden oluştur (extension tarafından gönderilen payload).
+    static func from(_ dict: [String: Any]) -> NASConfig? {
+        guard let rawHost = (dict["host"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawHost.isEmpty,
+              rawHost.range(of: hostPattern, options: .regularExpression) != nil else { return nil }
+        let proto = ((dict["protocol"] as? String) ?? "smb").lowercased()
+        guard allowedProtocols.contains(proto) else { return nil }
+        let rawPort = (dict["port"] as? Int) ?? 0
+        guard rawPort >= 0 && rawPort <= 65535 else { return nil }
+        let rawPath = ((dict["path"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawPath.split(separator: "/").contains("..") else { return nil }
+
+        var c = NASConfig()
+        c.enabled = true
+        c.protocol = proto
+        c.host = rawHost
+        c.port = rawPort
+        c.user = (dict["user"] as? String) ?? ""
+        c.pass = (dict["pass"] as? String) ?? ""
+        c.path = rawPath
+        return c
     }
 }
 
