@@ -117,7 +117,7 @@ final class DownloadStore: ObservableObject {
         item.headers = headers
         item.requestedSegments = req.segments ?? 0
         item.sourceBrowser = req.sourceBrowser
-        item.nas = req.nas
+        item.nas = req.nas ?? settings.nasConfig
         if req.kind == .video, let cookies = req.cookies, !cookies.isEmpty {
             item.cookieFile = writeCookieFile(cookies, id: item.id)
         }

@@ -48,6 +48,17 @@ async function ping(settings) {
     if (app && app.active > 0) startProgress();
     if (app && Array.isArray(app.captureExtensions)) api.storage.local.set({ captureExtensions: app.captureExtensions });
     if (app && Array.isArray(app.browserOnlySites)) api.storage.local.set({ browserOnlySites: app.browserOnlySites });
+    if (app && app.nas && typeof app.nas === 'object') {
+      const cur = await getSettings();
+      const patch = {};
+      if (typeof app.nas.enabled === 'boolean') patch.nasEnabled = app.nas.enabled;
+      if (app.nas.protocol) patch.nasProtocol = app.nas.protocol;
+      if (typeof app.nas.host === 'string' && app.nas.host) patch.nasHost = app.nas.host;
+      if (typeof app.nas.port === 'number') patch.nasPort = app.nas.port;
+      if (typeof app.nas.user === 'string' && app.nas.user) patch.nasUser = app.nas.user;
+      if (typeof app.nas.path === 'string' && app.nas.path) patch.nasPath = app.nas.path;
+      await api.storage.local.set({ settings: { ...cur, ...patch } });
+    }
     if (app && app.extensionVersion && app.extensionVersion !== EXT_VERSION) selfUpdate(app.extensionVersion);
     return app;
   } catch {
@@ -479,7 +490,15 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case 'downloads': sendResponse(await getDownloads()); break;
         case 'action': sendResponse(await downloadAction(msg.id, msg.action)); break;
         case 'download': sendResponse(await sendToApp(msg)); break;
-        case 'setSettings': await setSettings(msg.settings || {}); sendResponse({ ok: true }); break;
+        case 'setSettings': {
+          const patch = msg.settings || {};
+          await setSettings(patch);
+          if (Object.keys(patch).some((k) => k.startsWith('nas'))) {
+            bridgeJSON('/nas/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }).catch(() => {});
+          }
+          sendResponse({ ok: true });
+          break;
+        }
         case 'launchApp': sendResponse({ ok: await launchApp() }); break;
         case 'reloadExtension': sendResponse({ ok: true }); setTimeout(() => api.runtime.reload(), 100); break;
         case 'setSite': sendResponse(await setSiteBrowserOnly(msg.host, !!msg.browserOnly)); break;

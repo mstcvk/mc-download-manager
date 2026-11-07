@@ -3411,6 +3411,166 @@
           }
         }
       }
+    },
+    "NAS": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS"
+          }
+        }
+      }
+    },
+    "Download to NAS": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS'a indir"
+          }
+        }
+      }
+    },
+    "When enabled, completed file and video downloads are automatically uploaded to your NAS device.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etkinleştirildiğinde, tamamlanan dosya ve video indirmeleri otomatik olarak NAS cihazınıza yüklenir."
+          }
+        }
+      }
+    },
+    "Connection": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı"
+          }
+        }
+      }
+    },
+    "Protocol": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protokol"
+          }
+        }
+      }
+    },
+    "NAS IP / Hostname": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS IP / Sunucu adı"
+          }
+        }
+      }
+    },
+    "Port (0 = default)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Port (0 = varsayılan)"
+          }
+        }
+      }
+    },
+    "Username": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kullanıcı adı"
+          }
+        }
+      }
+    },
+    "Password": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifre"
+          }
+        }
+      }
+    },
+    "Remote path": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uzak dizin"
+          }
+        }
+      }
+    },
+    "For SMB, the first folder is the share name (e.g. /downloads or /downloads/movies). Default ports: SMB 445, SFTP 22, FTP 21, WebDAV 443.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SMB için ilk klasör paylaşım adıdır (örn. /downloads veya /downloads/filmler). Varsayılan portlar: SMB 445, SFTP 22, FTP 21, WebDAV 443."
+          }
+        }
+      }
+    },
+    "Testing…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test ediliyor…"
+          }
+        }
+      }
+    },
+    "Test Connection": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantıyı Test Et"
+          }
+        }
+      }
+    },
+    "Invalid NAS host or path": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçersiz NAS sunucu adı veya dizin yolu"
+          }
+        }
+      }
+    },
+    "Connection successful ✓": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı başarılı ✓"
+          }
+        }
+      }
+    },
+    "Connection failed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı başarısız"
+          }
+        }
+      }
     }
   }
 }

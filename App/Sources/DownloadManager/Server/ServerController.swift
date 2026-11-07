@@ -207,6 +207,14 @@ final class ServerController: ObservableObject {
                 // Downloads from these sites stay in the browser: permanently, or for a few minutes after a hand-off.
                 "browserOnlySites": settings.browserOnlySites,
                 "bypassHosts": store.bypassHosts,
+                "nas": [
+                    "enabled": settings.nasEnabled,
+                    "protocol": settings.nasProtocol,
+                    "host": settings.nasHost,
+                    "port": settings.nasPort,
+                    "user": settings.nasUser,
+                    "path": settings.nasPath,
+                ],
             ]))
 
         case ("GET", "/downloads"):
@@ -279,17 +287,45 @@ final class ServerController: ObservableObject {
             done(.json(["ok": true]))
 
         case ("POST", "/nas/test"):
-            guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any],
-                  let config = NASConfig.from(obj) else {
+            guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any] else {
                 done(.json(["ok": false, "error": "NAS config required"], status: 400))
                 return
             }
+            var merged = obj
+            if ((merged["pass"] as? String) ?? "").isEmpty && !settings.nasPass.isEmpty {
+                merged["pass"] = settings.nasPass
+            }
+            guard let config = NASConfig.from(merged) else {
+                done(.json(["ok": false, "error": "NAS config required"], status: 400))
+                return
+            }
+            // Eklentiden gelen NAS ayarlarını uygulama ayarlarıyla da senkronize et
+            settings.nasProtocol = config.protocol
+            settings.nasHost = config.host
+            settings.nasPort = config.port
+            settings.nasUser = config.user
+            if let p = obj["pass"] as? String, !p.isEmpty { settings.nasPass = p }
+            settings.nasPath = config.path
             DispatchQueue.global(qos: .userInitiated).async {
                 let result = NASUploader.testConnection(config)
                 var payload: [String: Any] = ["ok": result.ok]
                 if let err = result.error, !err.isEmpty { payload["error"] = err }
                 done(.json(payload))
             }
+
+        case ("POST", "/nas/settings"):
+            guard let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any] else {
+                done(.json(["ok": false, "error": "invalid body"], status: 400))
+                return
+            }
+            if let en = obj["nasEnabled"] as? Bool { settings.nasEnabled = en }
+            if let pr = obj["nasProtocol"] as? String { settings.nasProtocol = pr }
+            if let ho = obj["nasHost"] as? String { settings.nasHost = ho }
+            if let po = obj["nasPort"] as? Int { settings.nasPort = po }
+            if let us = obj["nasUser"] as? String { settings.nasUser = us }
+            if let pa = obj["nasPass"] as? String { settings.nasPass = pa }
+            if let pt = obj["nasPath"] as? String { settings.nasPath = pt }
+            done(.json(["ok": true]))
 
         default:
             done(.json(["ok": false, "error": "not found"], status: 404))

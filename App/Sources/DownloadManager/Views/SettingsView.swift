@@ -12,6 +12,7 @@ struct SettingsView: View {
             FileTypesSettings().tabItem { Label("File Types", systemImage: "doc.badge.gearshape") }
             BrowserSettings().tabItem { Label("Browser Extensions", systemImage: "puzzlepiece.extension") }
             VideoSettings().tabItem { Label("Video", systemImage: "film") }
+            NASSettings().tabItem { Label("NAS", systemImage: "externaldrive.connected.to.line.below") }
         }
         .frame(width: 600, height: 520)
     }
@@ -354,5 +355,77 @@ struct VideoSettings: View {
         p.canChooseDirectories = false
         p.showsHiddenFiles = true
         if p.runModal() == .OK, let u = p.url { settings.ytdlpPath = u.path }
+    }
+}
+
+// MARK: - NAS
+
+struct NASSettings: View {
+    @EnvironmentObject var settings: AppSettings
+    @State private var testing = false
+    @State private var testResult: (ok: Bool, message: String)?
+
+    var body: some View {
+        Form {
+            Section("NAS") {
+                Toggle("Download to NAS", isOn: $settings.nasEnabled)
+                Text("When enabled, completed file and video downloads are automatically uploaded to your NAS device.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Connection") {
+                Picker("Protocol", selection: $settings.nasProtocol) {
+                    Text("SMB").tag("smb")
+                    Text("SFTP").tag("sftp")
+                    Text("FTP").tag("ftp")
+                    Text("WebDAV").tag("webdav")
+                }
+                TextField("NAS IP / Hostname", text: $settings.nasHost, prompt: Text("192.168.1.100"))
+                TextField("Port (0 = default)", value: $settings.nasPort, format: .number.grouping(.never))
+                TextField("Username", text: $settings.nasUser)
+                SecureField("Password", text: $settings.nasPass)
+                TextField("Remote path", text: $settings.nasPath, prompt: Text("/downloads"))
+                Text("For SMB, the first folder is the share name (e.g. /downloads or /downloads/movies). Default ports: SMB 445, SFTP 22, FTP 21, WebDAV 443.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button(testing ? "Testing…" : "Test Connection") {
+                        runTest()
+                    }
+                    .disabled(testing || settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if let res = testResult {
+                        Label(res.message, systemImage: res.ok ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(res.ok ? .green : .red)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func runTest() {
+        guard let cfg = NASConfig.from([
+            "protocol": settings.nasProtocol,
+            "host": settings.nasHost,
+            "port": settings.nasPort,
+            "user": settings.nasUser,
+            "pass": settings.nasPass,
+            "path": settings.nasPath,
+        ]) else {
+            testResult = (false, String(localized: "Invalid NAS host or path"))
+            return
+        }
+        testing = true
+        testResult = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let res = NASUploader.testConnection(cfg)
+            DispatchQueue.main.async {
+                testing = false
+                if res.ok {
+                    testResult = (true, String(localized: "Connection successful ✓"))
+                } else {
+                    testResult = (false, res.error ?? String(localized: "Connection failed"))
+                }
+            }
+        }
     }
 }
