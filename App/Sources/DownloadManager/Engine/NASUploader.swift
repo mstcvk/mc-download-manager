@@ -4,6 +4,8 @@ import Foundation
 /// SMB (mount_smbfs), FTP (curl), SFTP (curl + sftp://), WebDAV (curl PUT) destekler.
 enum NASUploader {
 
+    private static let uploadQueue = DispatchQueue(label: "dm.nas-uploader", qos: .utility)
+
     struct NASError: LocalizedError {
         let message: String
         var errorDescription: String? { message }
@@ -11,7 +13,7 @@ enum NASUploader {
 
     /// Dosyayı NAS'a yükler. Tamamlandığında completion çağrılır (ana iş parçacığından değil).
     static func upload(file: URL, config: NASConfig, completion: @escaping (Result<String, Error>) -> Void) {
-        DispatchQueue.global(qos: .utility).async {
+        uploadQueue.async {
             do {
                 let result = try performUpload(file: file, config: config)
                 completion(.success(result))
@@ -148,8 +150,10 @@ enum NASUploader {
     // MARK: - Yardımcılar (URL Kodlama ve Güvenli Kimlik Doğrulama)
 
     private static func encodePath(_ path: String, trailingSlash: Bool = true) -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "[]{}")
         let parts = path.split(separator: "/").map {
-            String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String($0)
+            String($0).addingPercentEncoding(withAllowedCharacters: allowed) ?? String($0)
         }
         if parts.isEmpty { return "/" }
         return "/" + parts.joined(separator: "/") + (trailingSlash ? "/" : "")
@@ -157,7 +161,7 @@ enum NASUploader {
 
     private static func encodeFileName(_ name: String) -> String {
         var allowed = CharacterSet.urlPathAllowed
-        allowed.remove(charactersIn: "/?#")
+        allowed.remove(charactersIn: "/?#[]{}")
         return name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
     }
 
@@ -175,7 +179,7 @@ enum NASUploader {
     private static func runCurl(args: [String], config: NASConfig) throws -> (status: Int32, stderr: String) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        var fullArgs = args
+        var fullArgs = ["-g"] + args
         var inPipe: Pipe?
         if curlAuthStdin(config) != nil {
             fullArgs += ["-K", "-"]
