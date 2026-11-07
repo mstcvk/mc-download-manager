@@ -85,11 +85,15 @@ struct NASConfig: Codable, Equatable {
     var host: String = ""
     var port: Int = 0                   // 0 = varsayılan (SMB 445, FTP 21, SFTP 22, WebDAV 80/443)
     var user: String = ""
-    var pass: String = ""
+    var pass: String = ""               // bellekte tutulur, diske (downloads.json) yazılmaz
     var path: String = ""               // /downloads gibi uzak dizin yolu
 
+    enum CodingKeys: String, CodingKey {
+        case enabled, `protocol`, host, port, user, path
+    }
+
     var effectivePort: Int {
-        if port > 0 { return port }
+        if port > 0 && port <= 65535 { return port }
         switch `protocol` {
         case "smb": return 445
         case "ftp": return 21
@@ -99,17 +103,29 @@ struct NASConfig: Codable, Equatable {
         }
     }
 
+    private static let allowedProtocols: Set<String> = ["smb", "ftp", "sftp", "webdav"]
+    private static let hostPattern = "^[A-Za-z0-9]([A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$"
+
     /// JSON sözlüğünden oluştur (extension tarafından gönderilen payload).
     static func from(_ dict: [String: Any]) -> NASConfig? {
-        guard let host = dict["host"] as? String, !host.isEmpty else { return nil }
+        guard let rawHost = (dict["host"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawHost.isEmpty,
+              rawHost.range(of: hostPattern, options: .regularExpression) != nil else { return nil }
+        let proto = ((dict["protocol"] as? String) ?? "smb").lowercased()
+        guard allowedProtocols.contains(proto) else { return nil }
+        let rawPort = (dict["port"] as? Int) ?? 0
+        guard rawPort >= 0 && rawPort <= 65535 else { return nil }
+        let rawPath = ((dict["path"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawPath.split(separator: "/").contains("..") else { return nil }
+
         var c = NASConfig()
         c.enabled = true
-        c.protocol = (dict["protocol"] as? String) ?? "smb"
-        c.host = host
-        c.port = (dict["port"] as? Int) ?? 0
+        c.protocol = proto
+        c.host = rawHost
+        c.port = rawPort
         c.user = (dict["user"] as? String) ?? ""
         c.pass = (dict["pass"] as? String) ?? ""
-        c.path = (dict["path"] as? String) ?? ""
+        c.path = rawPath
         return c
     }
 }

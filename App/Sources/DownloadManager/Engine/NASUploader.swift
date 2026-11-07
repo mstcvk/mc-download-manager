@@ -56,7 +56,20 @@ enum NASUploader {
 
     // MARK: - SMB
 
+    /// Path'i SMB paylaşım adı (ilk bileşen) ve alt klasör yolu olarak ayırır.
+    private static func splitSMBPath(_ rawPath: String) -> (share: String, subpath: String) {
+        let parts = rawPath.split(separator: "/").map(String.init).filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+        guard let share = parts.first else { return ("", "") }
+        let sub = parts.dropFirst().joined(separator: "/")
+        return (share, sub)
+    }
+
     private static func uploadSMB(file: URL, config: NASConfig) throws -> String {
+        let (share, subpath) = splitSMBPath(config.path)
+        guard !share.isEmpty else {
+            throw NASError(message: "SMB share path is required (e.g. /downloads)")
+        }
+
         // SMB: mount → copy → unmount
         let mountPoint = FileManager.default.temporaryDirectory.appendingPathComponent("mcdm-nas-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
@@ -70,10 +83,10 @@ enum NASUploader {
             try? FileManager.default.removeItem(at: mountPoint)
         }
 
-        let smbURL = buildSMBURL(config)
+        let smbURL = buildSMBURL(config, share: share)
         let mount = Process()
         mount.executableURL = URL(fileURLWithPath: "/sbin/mount_smbfs")
-        mount.arguments = [smbURL, mountPoint.path]
+        mount.arguments = ["-N", smbURL, mountPoint.path]
         mount.standardOutput = FileHandle.nullDevice
         let errPipe = Pipe()
         mount.standardError = errPipe
@@ -85,22 +98,22 @@ enum NASUploader {
             throw NASError(message: "SMB mount failed: \(errStr.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
 
-        // Hedef dizini oluştur (path'teki alt klasörler)
-        let remotePath = config.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        // Hedef dizini oluştur (paylaşım içindeki alt klasörler)
         var destDir = mountPoint
-        if !remotePath.isEmpty {
-            // SMB share'ın mount noktasında path'teki alt klasörleri oluştur
-            // İlk kısım share adı olarak zaten mount edildi, geri kalanı dizin
-            destDir = mountPoint.appendingPathComponent(remotePath)
+        if !subpath.isEmpty {
+            destDir = mountPoint.appendingPathComponent(subpath)
             try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
         }
 
         let dest = destDir.appendingPathComponent(file.lastPathComponent)
+        if FileManager.default.fileExists(atPath: dest.path) {
+            try? FileManager.default.removeItem(at: dest)
+        }
         try FileManager.default.copyItem(at: file, to: dest)
         return dest.lastPathComponent
     }
 
-    private static func buildSMBURL(_ config: NASConfig) -> String {
+    private static func buildSMBURL(_ config: NASConfig, share: String) -> String {
         var auth = ""
         if !config.user.isEmpty {
             let user = config.user.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? config.user
@@ -108,14 +121,12 @@ enum NASUploader {
             auth = config.pass.isEmpty ? "\(user)@" : "\(user):\(pass)@"
         }
         let port = config.port > 0 ? ":\(config.port)" : ""
-        let path = config.path.hasPrefix("/") ? config.path : "/\(config.path)"
-        // mount_smbfs share yolunu bekler
-        return "//\(auth)\(config.host)\(port)\(path)"
+        let encodedShare = share.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? share
+        return "//\(auth)\(config.host)\(port)/\(encodedShare)"
     }
 
     private static func testSMB(_ config: NASConfig) -> (ok: Bool, error: String?) {
         // Hızlı test: smbutil ile bağlantı kontrolü
-        let smbURL = "smb://\(config.host)"
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/smbutil")
         proc.arguments = ["status", config.host]
@@ -134,61 +145,94 @@ enum NASUploader {
         }
     }
 
+    // MARK: - Yardımcılar (URL Kodlama ve Güvenli Kimlik Doğrulama)
+
+    private static func encodePath(_ path: String, trailingSlash: Bool = true) -> String {
+        let parts = path.split(separator: "/").map {
+            String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String($0)
+        }
+        if parts.isEmpty { return "/" }
+        return "/" + parts.joined(separator: "/") + (trailingSlash ? "/" : "")
+    }
+
+    private static func encodeFileName(_ name: String) -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        return name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+    }
+
+    /// Parolayı komut satırı argümanlarında (ps aux) sızdırmamak için curl stdin config (-K -) formatı üretir.
+    private static func curlAuthStdin(_ config: NASConfig) -> Data? {
+        guard !config.user.isEmpty else { return nil }
+        let raw = "\(config.user):\(config.pass)"
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+        return Data("user = \"\(raw)\"\n".utf8)
+    }
+
+    private static func runCurl(args: [String], config: NASConfig) throws -> (status: Int32, stderr: String) {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        var fullArgs = args
+        var inPipe: Pipe?
+        if curlAuthStdin(config) != nil {
+            fullArgs += ["-K", "-"]
+            let p = Pipe()
+            proc.standardInput = p
+            inPipe = p
+        }
+        proc.arguments = fullArgs
+        proc.standardOutput = FileHandle.nullDevice
+        let errPipe = Pipe()
+        proc.standardError = errPipe
+        try proc.run()
+        if let inPipe, let authData = curlAuthStdin(config) {
+            inPipe.fileHandleForWriting.write(authData)
+            try? inPipe.fileHandleForWriting.close()
+        }
+        proc.waitUntilExit()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        let errStr = String(data: errData, encoding: .utf8) ?? ""
+        return (proc.terminationStatus, errStr.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     // MARK: - FTP / SFTP (curl)
 
     private static func uploadCurl(file: URL, config: NASConfig, scheme: String) throws -> String {
-        let remotePath = config.path.hasSuffix("/") ? config.path : config.path + "/"
+        let remotePath = encodePath(config.path, trailingSlash: true)
+        let encodedName = encodeFileName(file.lastPathComponent)
         let port = config.effectivePort
-        let url = "\(scheme)://\(config.host):\(port)\(remotePath)\(file.lastPathComponent)"
+        let url = "\(scheme)://\(config.host):\(port)\(remotePath)\(encodedName)"
 
         var args = ["-T", file.path, url, "--connect-timeout", "15", "-s", "-S"]
-        if !config.user.isEmpty {
-            args += ["-u", "\(config.user):\(config.pass)"]
-        }
         if scheme == "sftp" {
-            args += ["--insecure"]   // NAS cihazlarında self-signed sertifika yaygın
+            args += ["--insecure", "--ftp-create-dirs"]   // NAS cihazlarında self-signed/host key
         }
         if scheme == "ftp" {
             args += ["--ftp-create-dirs"]
         }
 
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        proc.arguments = args
-        proc.standardOutput = FileHandle.nullDevice
-        let errPipe = Pipe()
-        proc.standardError = errPipe
-        try proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8) ?? "\(scheme.uppercased()) upload failed"
-            throw NASError(message: "\(scheme.uppercased()) upload failed: \(errStr.trimmingCharacters(in: .whitespacesAndNewlines))")
+        let res = try runCurl(args: args, config: config)
+        guard res.status == 0 else {
+            let msg = res.stderr.isEmpty ? "\(scheme.uppercased()) upload failed" : res.stderr
+            throw NASError(message: "\(scheme.uppercased()) upload failed: \(msg)")
         }
         return file.lastPathComponent
     }
 
     private static func testCurl(_ config: NASConfig, scheme: String) -> (ok: Bool, error: String?) {
         let port = config.effectivePort
-        let path = config.path.hasSuffix("/") ? config.path : config.path + "/"
+        let path = encodePath(config.path, trailingSlash: true)
         let url = "\(scheme)://\(config.host):\(port)\(path)"
         var args = [url, "--connect-timeout", "10", "-s", "-S", "--list-only"]
-        if !config.user.isEmpty { args += ["-u", "\(config.user):\(config.pass)"] }
         if scheme == "sftp" { args += ["--insecure"] }
 
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        proc.arguments = args
-        proc.standardOutput = FileHandle.nullDevice
-        let errPipe = Pipe()
-        proc.standardError = errPipe
         do {
-            try proc.run()
-            proc.waitUntilExit()
-            if proc.terminationStatus == 0 { return (true, nil) }
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8) ?? "Connection failed"
-            return (false, errStr.trimmingCharacters(in: .whitespacesAndNewlines))
+            let res = try runCurl(args: args, config: config)
+            if res.status == 0 { return (true, nil) }
+            return (false, res.stderr.isEmpty ? "Connection failed" : res.stderr)
         } catch {
             return (false, error.localizedDescription)
         }
@@ -199,25 +243,15 @@ enum NASUploader {
     private static func uploadWebDAV(file: URL, config: NASConfig) throws -> String {
         let scheme = config.port == 443 || config.port == 0 ? "https" : "http"
         let port = config.effectivePort
-        let remotePath = config.path.hasSuffix("/") ? config.path : config.path + "/"
-        let url = "\(scheme)://\(config.host):\(port)\(remotePath)\(file.lastPathComponent)"
+        let remotePath = encodePath(config.path, trailingSlash: true)
+        let encodedName = encodeFileName(file.lastPathComponent)
+        let url = "\(scheme)://\(config.host):\(port)\(remotePath)\(encodedName)"
 
-        var args = ["-T", file.path, url, "--connect-timeout", "15", "-s", "-S"]
-        if !config.user.isEmpty { args += ["-u", "\(config.user):\(config.pass)"] }
-        args += ["--insecure"]   // NAS self-signed sertifika
-
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        proc.arguments = args
-        proc.standardOutput = FileHandle.nullDevice
-        let errPipe = Pipe()
-        proc.standardError = errPipe
-        try proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8) ?? "WebDAV upload failed"
-            throw NASError(message: "WebDAV upload failed: \(errStr.trimmingCharacters(in: .whitespacesAndNewlines))")
+        let args = ["-T", file.path, url, "--connect-timeout", "15", "-s", "-S", "--fail", "--insecure"]
+        let res = try runCurl(args: args, config: config)
+        guard res.status == 0 else {
+            let msg = res.stderr.isEmpty ? "WebDAV upload failed" : res.stderr
+            throw NASError(message: "WebDAV upload failed: \(msg)")
         }
         return file.lastPathComponent
     }
@@ -225,25 +259,14 @@ enum NASUploader {
     private static func testWebDAV(_ config: NASConfig) -> (ok: Bool, error: String?) {
         let scheme = config.port == 443 || config.port == 0 ? "https" : "http"
         let port = config.effectivePort
-        let url = "\(scheme)://\(config.host):\(port)\(config.path)"
-        var args = [url, "--connect-timeout", "10", "-s", "-S", "-I"]   // HEAD request
-        if !config.user.isEmpty { args += ["-u", "\(config.user):\(config.pass)"] }
-        args += ["--insecure"]
+        let remotePath = encodePath(config.path, trailingSlash: false)
+        let url = "\(scheme)://\(config.host):\(port)\(remotePath)"
+        let args = [url, "--connect-timeout", "10", "-s", "-S", "--fail", "-I", "--insecure"]
 
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        proc.arguments = args
-        let outPipe = Pipe()
-        proc.standardOutput = outPipe
-        let errPipe = Pipe()
-        proc.standardError = errPipe
         do {
-            try proc.run()
-            proc.waitUntilExit()
-            if proc.terminationStatus == 0 { return (true, nil) }
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8) ?? "Connection failed"
-            return (false, errStr.trimmingCharacters(in: .whitespacesAndNewlines))
+            let res = try runCurl(args: args, config: config)
+            if res.status == 0 { return (true, nil) }
+            return (false, res.stderr.isEmpty ? "Connection failed" : res.stderr)
         } catch {
             return (false, error.localizedDescription)
         }
