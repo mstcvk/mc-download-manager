@@ -46,6 +46,7 @@ final class AppSettings: ObservableObject {
     @Published var nasUser: String { didSet { defaults.set(nasUser, forKey: "nasUser") } }
     @Published var nasPass: String { didSet { Self.saveKeychainPassword(nasPass) } }
     @Published var nasPath: String { didSet { defaults.set(nasPath, forKey: "nasPath") } }
+    @Published var nasSyncExistingLocal: Bool { didSet { defaults.set(nasSyncExistingLocal, forKey: "nasSyncExistingLocal") } }
 
     var nasConfig: NASConfig? {
         guard nasEnabled else { return nil }
@@ -110,6 +111,7 @@ final class AppSettings: ObservableObject {
         nasUser = defaults.string(forKey: "nasUser") ?? ""
         nasPass = Self.loadKeychainPassword() ?? ""
         nasPath = defaults.string(forKey: "nasPath") ?? ""
+        nasSyncExistingLocal = defaults.object(forKey: "nasSyncExistingLocal") as? Bool ?? true
     }
 
     private static func saveKeychainPassword(_ password: String) {

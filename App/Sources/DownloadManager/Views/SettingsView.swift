@@ -364,13 +364,29 @@ struct NASSettings: View {
     @EnvironmentObject var settings: AppSettings
     @State private var testing = false
     @State private var testResult: (ok: Bool, message: String)?
+    @State private var syncing = false
+    @State private var syncMessage: String?
 
     var body: some View {
         Form {
             Section("NAS") {
                 Toggle("Download to NAS", isOn: $settings.nasEnabled)
-                Text("When enabled, completed file and video downloads are automatically uploaded to your NAS device.")
+                Toggle("Sync previously downloaded local files to NAS", isOn: $settings.nasSyncExistingLocal)
+                Text("Downloads are first completed to your local folder and then automatically uploaded to your NAS. Files already present on the NAS are skipped, and category folders (e.g. Video) are only created on the NAS when needed and if they do not already exist.")
                     .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button(syncing ? "Checking & Uploading to NAS…" : "Check Local Files & Upload Missing to NAS") {
+                        runLocalSync()
+                    }
+                    .disabled(syncing || settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if let msg = syncMessage {
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
             }
             Section("Connection") {
                 Picker("Protocol", selection: $settings.nasProtocol) {
@@ -400,6 +416,40 @@ struct NASSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func runLocalSync() {
+        guard let cfg = NASConfig.from([
+            "protocol": settings.nasProtocol,
+            "host": settings.nasHost,
+            "port": settings.nasPort,
+            "user": settings.nasUser,
+            "pass": settings.nasPass,
+            "path": settings.nasPath,
+        ]) else {
+            syncMessage = String(localized: "Invalid NAS host or path")
+            return
+        }
+        syncing = true
+        syncMessage = String(localized: "Checking NAS files…")
+        let localRoot = URL(fileURLWithPath: settings.downloadDirectory)
+        let organize = settings.organizeByCategory
+        NASUploader.syncLocalFiles(
+            localRoot: localRoot,
+            baseConfig: cfg,
+            organizeByCategory: organize,
+            onStatus: { current in
+                DispatchQueue.main.async {
+                    syncMessage = current
+                }
+            },
+            completion: { uploaded, skipped, failed in
+                DispatchQueue.main.async {
+                    syncing = false
+                    syncMessage = String(localized: "NAS sync complete: \(uploaded) uploaded, \(skipped) already on NAS, \(failed) failed ✓")
+                }
+            }
+        )
     }
 
     private func runTest() {
