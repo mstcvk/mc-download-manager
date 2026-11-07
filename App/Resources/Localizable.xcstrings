@@ -545,6 +545,17 @@
         }
       }
     },
+    "Checking NAS…": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS kontrol ediliyor…"
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "tr": {
@@ -971,6 +982,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Varsayılan: en fazla 1080p MP4. Akışlar gömülü ffmpeg ile birleştirilir."
+          }
+        }
+      }
+    },
+    "Delete local copy after uploading to NAS": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAS'a yüklendikten sonra bilgisayardaki kopyayı sil (Çöp Sepetine taşı)"
           }
         }
       }

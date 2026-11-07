@@ -6,6 +6,32 @@ enum NASUploader {
 
     private static let uploadQueue = DispatchQueue(label: "dm.nas-uploader", qos: .utility)
 
+    private static var syncedStoreURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("MC Download Manager", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("nas_synced_files.json")
+    }
+
+    private static func loadSyncedSet() -> Set<String> {
+        guard let data = try? Data(contentsOf: syncedStoreURL),
+              let arr = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return Set(arr)
+    }
+
+    private static func saveSyncedSet(_ set: Set<String>) {
+        guard let data = try? JSONEncoder().encode(Array(set).sorted()) else { return }
+        try? data.write(to: syncedStoreURL, options: .atomic)
+    }
+
+    static func markFileSynced(remoteDir: String, fileName: String) {
+        let key = "\(normalizeNFC(remoteDir))/\(normalizeNFC(fileName))"
+        var set = loadSyncedSet()
+        if set.insert(key).inserted {
+            saveSyncedSet(set)
+        }
+    }
+
     enum UploadOutcome {
         case uploaded(String)
         case skippedExisting(String)
@@ -18,10 +44,15 @@ enum NASUploader {
 
     /// Dosyayı NAS'a yükler (öncesinde NAS'ta aynı isim ve boyutta dosya olup olmadığını kontrol eder;
     /// hedef klasör yoksa yalnızca o klasörü oluşturur, varsa yeniden oluşturmaz).
-    static func upload(file: URL, config: NASConfig, completion: @escaping (Result<UploadOutcome, Error>) -> Void) {
+    static func upload(file: URL, config: NASConfig, deleteLocalAfterUpload: Bool = false, completion: @escaping (Result<UploadOutcome, Error>) -> Void) {
         uploadQueue.async {
             do {
-                let outcome = try performUpload(file: file, config: config)
+                let cleanedURL = stripBracketIDIfNeeded(at: file)
+                let outcome = try performUpload(file: cleanedURL, config: config)
+                markFileSynced(remoteDir: config.path, fileName: cleanedURL.lastPathComponent)
+                if deleteLocalAfterUpload {
+                    try? FileManager.default.trashItem(at: cleanedURL, resultingItemURL: nil)
+                }
                 completion(.success(outcome))
             } catch {
                 completion(.failure(error))
@@ -30,13 +61,17 @@ enum NASUploader {
     }
 
     /// Bilgisayardaki indirme klasörünü tarar, NAS sunucusundaki dosyalarla karşılaştırır ve
-    /// yalnızca NAS'ta bulunmayan (veya yarım kalmış) tamamlanmış dosyaları NAS'a yükler.
+    /// yalnızca NAS'ta bulunmayan (ve daha önce NAS'a yüklenip kullanıcı tarafından silinmemiş) tamamlanmış dosyaları NAS'a yükler.
     /// Yalnızca içinde dosya bulunan kategori klasörlerini (yoksa) oluşturur; boş kategoriler için klasör açmaz.
     static func syncLocalFiles(
         localRoot: URL,
         baseConfig: NASConfig,
         organizeByCategory: Bool,
+        deleteLocalAfterUpload: Bool = false,
+        respectPreviouslySynced: Bool = true,
         onStatus: @escaping (String) -> Void,
+        onFileStart: ((URL, Int, Int) -> Void)? = nil,
+        onFileOutcome: ((URL, Result<UploadOutcome, Error>, Int, Int) -> Void)? = nil,
         completion: @escaping (_ uploaded: Int, _ skipped: Int, _ failed: Int) -> Void
     ) {
         uploadQueue.async {
@@ -45,6 +80,10 @@ enum NASUploader {
                 completion(0, 0, 0)
                 return
             }
+
+            let totalCount = candidates.count
+            var currentIndex = 0
+            var syncedHistory = loadSyncedSet()
 
             // Hedef NAS klasörüne göre grupla (yalnızca dosyası olan klasörler işlenir)
             var grouped: [String: [URL]] = [:]
@@ -74,33 +113,62 @@ enum NASUploader {
                 var existingFiles = listing.files
 
                 for fileURL in files {
+                    currentIndex += 1
+                    let idx = currentIndex
                     let fileNameNFC = normalizeNFC(fileURL.lastPathComponent)
+                    let historyKey = "\(normalizeNFC(remoteDirPath))/\(fileNameNFC)"
+
+                    // Kullanıcı daha önce NAS'a yüklenen bir dosyayı NAS'tan sildiyse otomatik eşitlemede tekrar yükleme
+                    if respectPreviouslySynced && syncedHistory.contains(historyKey) && !existingFiles.contains(fileNameNFC) {
+                        skippedCount += 1
+                        onFileOutcome?(fileURL, .success(.skippedExisting(fileNameNFC)), idx, totalCount)
+                        continue
+                    }
+
                     if dirExists && existingFiles.contains(fileNameNFC) {
                         let localSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.size] as? Int64 ?? 0
                         if let remoteSize = remoteFileSize(fileName: fileNameNFC, config: dirConfig) {
                             if remoteSize == localSize && localSize > 0 {
+                                syncedHistory.insert(historyKey)
+                                if deleteLocalAfterUpload {
+                                    try? FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
+                                }
                                 skippedCount += 1
+                                onFileOutcome?(fileURL, .success(.skippedExisting(fileNameNFC)), idx, totalCount)
                                 continue
                             }
                         } else {
-                            // Sunucu SIZE desteklemiyorsa isim eşleşmesi yeterli kabul edilir
+                            syncedHistory.insert(historyKey)
+                            if deleteLocalAfterUpload {
+                                try? FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
+                            }
                             skippedCount += 1
+                            onFileOutcome?(fileURL, .success(.skippedExisting(fileNameNFC)), idx, totalCount)
                             continue
                         }
                     }
 
-                    onStatus("\(fileNameNFC) → \(remoteDirPath)")
+                    onFileStart?(fileURL, idx, totalCount)
+                    onStatus("\(fileNameNFC) (\(idx)/\(totalCount))")
                     do {
-                        _ = try performUploadInternal(file: fileURL, config: dirConfig, directoryAlreadyExists: dirExists)
+                        let uploadedName = try performUploadInternal(file: fileURL, config: dirConfig, directoryAlreadyExists: dirExists)
                         dirExists = true
                         existingFiles.insert(fileNameNFC)
+                        syncedHistory.insert(historyKey)
+                        saveSyncedSet(syncedHistory)
+                        if deleteLocalAfterUpload {
+                            try? FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
+                        }
                         uploadedCount += 1
+                        onFileOutcome?(fileURL, .success(.uploaded(uploadedName)), idx, totalCount)
                     } catch {
                         failedCount += 1
+                        onFileOutcome?(fileURL, .failure(error), idx, totalCount)
                     }
                 }
             }
 
+            saveSyncedSet(syncedHistory)
             completion(uploadedCount, skippedCount, failedCount)
         }
     }
@@ -123,7 +191,7 @@ enum NASUploader {
 
     // MARK: - Yerel Dosya Tarama
 
-    private static func collectCompletedLocalFiles(
+    static func collectCompletedLocalFiles(
         in root: URL,
         organizeByCategory: Bool
     ) -> [(url: URL, categoryLabel: String?)] {

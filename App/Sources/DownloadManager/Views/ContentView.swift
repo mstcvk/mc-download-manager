@@ -277,11 +277,24 @@ struct ContentView: View {
             if settings.nasEnabled && !settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty {
                 Divider().frame(height: 12)
                 HStack(spacing: 6) {
-                    Circle().fill(Color.green).frame(width: 7, height: 7)
-                    Text("NAS: \(settings.nasProtocol.uppercased())://\(settings.nasHost)\(settings.nasPath.hasPrefix("/") ? settings.nasPath : "/" + settings.nasPath)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    Circle().fill(store.nasProgress != nil ? Color.blue : Color.green).frame(width: 7, height: 7)
+                    if let status = store.nasStatusLine, !status.isEmpty {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } else {
+                        Text("NAS: \(settings.nasProtocol.uppercased())://\(settings.nasHost)\(settings.nasPath.hasPrefix("/") ? settings.nasPath : "/" + settings.nasPath)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if let p = store.nasProgress, p.total > 0 {
+                        ProgressView(value: Double(p.current), total: Double(p.total))
+                            .progressViewStyle(.linear)
+                            .frame(width: 80)
+                    }
                 }
             }
             Spacer()

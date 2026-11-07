@@ -372,6 +372,7 @@ struct NASSettings: View {
             Section("NAS") {
                 Toggle("Download to NAS", isOn: $settings.nasEnabled)
                 Toggle("Sync previously downloaded local files to NAS", isOn: $settings.nasSyncExistingLocal)
+                Toggle("Delete local copy after uploading to NAS", isOn: $settings.nasDeleteLocalAfterUpload)
                 Text("Downloads are first completed to your local folder and then automatically uploaded to your NAS. Files already present on the NAS are skipped, and category folders (e.g. Video) are only created on the NAS when needed and if they do not already exist.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
@@ -419,35 +420,27 @@ struct NASSettings: View {
     }
 
     private func runLocalSync() {
-        guard let cfg = NASConfig.from([
+        guard NASConfig.from([
             "protocol": settings.nasProtocol,
             "host": settings.nasHost,
             "port": settings.nasPort,
             "user": settings.nasUser,
             "pass": settings.nasPass,
             "path": settings.nasPath,
-        ]) else {
+        ]) != nil else {
             syncMessage = String(localized: "Invalid NAS host or path")
             return
         }
         syncing = true
         syncMessage = String(localized: "Checking NAS files…")
-        let localRoot = URL(fileURLWithPath: settings.downloadDirectory)
-        let organize = settings.organizeByCategory
-        NASUploader.syncLocalFiles(
-            localRoot: localRoot,
-            baseConfig: cfg,
-            organizeByCategory: organize,
-            onStatus: { current in
-                DispatchQueue.main.async {
-                    syncMessage = current
-                }
+        AppCore.shared.store.syncLocalToNAS(
+            respectHistory: false,
+            onProgress: { current in
+                syncMessage = current
             },
-            completion: { uploaded, skipped, failed in
-                DispatchQueue.main.async {
-                    syncing = false
-                    syncMessage = String(localized: "NAS sync complete: \(uploaded) uploaded, \(skipped) already on NAS, \(failed) failed ✓")
-                }
+            onDone: { uploaded, skipped, failed in
+                syncing = false
+                syncMessage = String(localized: "NAS sync complete: \(uploaded) uploaded, \(skipped) already on NAS, \(failed) failed ✓")
             }
         )
     }

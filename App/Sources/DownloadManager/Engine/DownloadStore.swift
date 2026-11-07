@@ -23,6 +23,8 @@ struct NewDownloadRequest {
 /// Tüm indirmelerin durumu, kuyruk ve kalıcılık. Yalnızca ana iş parçacığında kullanılır.
 final class DownloadStore: ObservableObject {
     @Published private(set) var items: [DownloadItem] = []
+    @Published var nasStatusLine: String? = nil
+    @Published var nasProgress: (current: Int, total: Int)? = nil
 
     let settings: AppSettings
     private var downloaders: [UUID: SegmentedDownloader] = [:]
@@ -259,19 +261,29 @@ final class DownloadStore: ObservableObject {
                 // NAS'a yükleme (öncesinde NAS'ta mevcut olup olmadığını kontrol eder)
                 if let nasPassSynced = resolvedNASConfig(for: item, fileURL: dest) {
                     update(id) { $0.stage = String(localized: "Uploading to NAS…") }
-                    NASUploader.upload(file: dest, config: nasPassSynced) { [weak self] uploadResult in
+                    nasStatusLine = "\(String(localized: "Uploading to NAS…")) \(dest.lastPathComponent)"
+                    NASUploader.upload(file: dest, config: nasPassSynced, deleteLocalAfterUpload: settings.nasDeleteLocalAfterUpload) { [weak self] uploadResult in
                         DispatchQueue.main.async {
                             guard let self else { return }
                             switch uploadResult {
                             case .success(let outcome):
                                 switch outcome {
-                                case .uploaded:
-                                    self.update(id) { $0.stage = String(localized: "NAS upload complete ✓") }
-                                case .skippedExisting:
-                                    self.update(id) { $0.stage = String(localized: "Already on NAS ✓") }
+                                case .uploaded(let cleanName):
+                                    self.update(id) {
+                                        $0.fileName = cleanName
+                                        $0.stage = String(localized: "NAS upload complete ✓")
+                                    }
+                                    self.nasStatusLine = "\(String(localized: "NAS upload complete ✓")) (\(cleanName))"
+                                case .skippedExisting(let cleanName):
+                                    self.update(id) {
+                                        $0.fileName = cleanName
+                                        $0.stage = String(localized: "Already on NAS ✓")
+                                    }
+                                    self.nasStatusLine = "\(String(localized: "Already on NAS ✓")) (\(cleanName))"
                                 }
                             case .failure(let err):
                                 self.update(id) { $0.stage = String(localized: "NAS upload failed: \(err.localizedDescription)") }
+                                self.nasStatusLine = String(localized: "NAS upload failed: \(err.localizedDescription)")
                             }
                             self.scheduleSave()
                         }
@@ -466,33 +478,39 @@ final class DownloadStore: ObservableObject {
                     guard let self, let item = self.items.first(where: { $0.id == id }) else { return }
                     let fileURL = URL(fileURLWithPath: filePath)
                     guard let c = self.resolvedNASConfig(for: item, fileURL: fileURL) else { return }
-                    let cleanName = NASUploader.normalizeNFC(fileURL.lastPathComponent)
+                    let cleanName = NASUploader.stripBracketID(fileURL.lastPathComponent)
                     self.update(id) {
                         $0.stage = String(localized: "Uploading to NAS…")
                         $0.log = String(($0.log + "[NAS] \(String(localized: "Uploading to NAS…")) \(cleanName) → \(c.path)\n").suffix(6000))
                     }
-                    NASUploader.upload(file: fileURL, config: c) { [weak self] uploadResult in
+                    self.nasStatusLine = "\(String(localized: "Uploading to NAS…")) \(cleanName)"
+                    NASUploader.upload(file: fileURL, config: c, deleteLocalAfterUpload: self.settings.nasDeleteLocalAfterUpload) { [weak self] uploadResult in
                         DispatchQueue.main.async {
                             guard let self else { return }
                             switch uploadResult {
                             case .success(let outcome):
                                 switch outcome {
-                                case .uploaded:
+                                case .uploaded(let finalName):
                                     self.update(id) {
+                                        $0.fileName = finalName
                                         $0.stage = String(localized: "NAS upload complete ✓")
-                                        $0.log = String(($0.log + "[NAS] \(String(localized: "NAS upload complete ✓")) (\(c.path)/\(cleanName))\n").suffix(6000))
+                                        $0.log = String(($0.log + "[NAS] \(String(localized: "NAS upload complete ✓")) (\(c.path)/\(finalName))\n").suffix(6000))
                                     }
-                                case .skippedExisting:
+                                    self.nasStatusLine = "\(String(localized: "NAS upload complete ✓")) (\(finalName))"
+                                case .skippedExisting(let finalName):
                                     self.update(id) {
+                                        $0.fileName = finalName
                                         $0.stage = String(localized: "Already on NAS ✓")
-                                        $0.log = String(($0.log + "[NAS] \(String(localized: "Already on NAS ✓")) (\(c.path)/\(cleanName))\n").suffix(6000))
+                                        $0.log = String(($0.log + "[NAS] \(String(localized: "Already on NAS ✓")) (\(c.path)/\(finalName))\n").suffix(6000))
                                     }
+                                    self.nasStatusLine = "\(String(localized: "Already on NAS ✓")) (\(finalName))"
                                 }
                             case .failure(let err):
                                 self.update(id) {
                                     $0.stage = String(localized: "NAS upload failed: \(err.localizedDescription)")
                                     $0.log = String(($0.log + "[NAS] \(String(localized: "NAS upload failed: \(err.localizedDescription)"))\n").suffix(6000))
                                 }
+                                self.nasStatusLine = String(localized: "NAS upload failed: \(err.localizedDescription)")
                             }
                             self.scheduleSave()
                         }
@@ -717,8 +735,63 @@ final class DownloadStore: ObservableObject {
         }
     }
 
-    /// Bilgisayardaki indirme klasöründe önceden inmiş dosyaları NAS sunucusuyla karşılaştırıp yalnızca eksikleri NAS'a yükler.
-    func syncLocalToNAS(onProgress: ((String) -> Void)? = nil, onDone: ((Int, Int, Int) -> Void)? = nil) {
+    /// Bilgisayardaki indirme klasöründe önceden inmiş dosyaları ana pencere listesine dahil eder,
+    /// NAS sunucusuyla karşılaştırır ve yalnızca eksikleri NAS'a yükler.
+    func syncLocalToNAS(respectHistory: Bool = true, onProgress: ((String) -> Void)? = nil, onDone: ((Int, Int, Int) -> Void)? = nil) {
+        let localRoot = URL(fileURLWithPath: settings.downloadDirectory)
+        let organize = settings.organizeByCategory
+        let localFiles = NASUploader.collectCompletedLocalFiles(in: localRoot, organizeByCategory: organize)
+
+        // Ana pencere listesinde (items) henüz görünmeyen yerel dosyaları listeye ekle
+        var pathToID: [String: UUID] = [:]
+        for item in items {
+            if let fp = item.finalPath {
+                pathToID[NASUploader.normalizeNFC(fp)] = item.id
+            }
+            let destPath = destinationURL(for: item).path
+            pathToID[NASUploader.normalizeNFC(destPath)] = item.id
+        }
+
+        var addedAny = false
+        for entry in localFiles {
+            let normPath = NASUploader.normalizeNFC(entry.url.path)
+            if let existingID = pathToID[normPath] {
+                if settings.nasEnabled {
+                    update(existingID) {
+                        if $0.stage.isEmpty { $0.stage = String(localized: "Checking NAS…") }
+                    }
+                }
+                continue
+            }
+            let fileName = NASUploader.normalizeNFC(entry.url.lastPathComponent)
+            let attrs = try? FileManager.default.attributesOfItem(atPath: entry.url.path)
+            let size = (attrs?[.size] as? Int64) ?? 0
+            let mtime = (attrs?[.modificationDate] as? Date) ?? Date()
+            var newItem = DownloadItem(
+                url: entry.url,
+                fileName: fileName,
+                directory: localRoot,
+                kind: .file
+            )
+            newItem.state = .completed
+            newItem.totalBytes = size
+            newItem.receivedBytes = size
+            newItem.createdAt = mtime
+            newItem.completedAt = mtime
+            newItem.finalPath = entry.url.path
+            newItem.nas = settings.nasConfig
+            if settings.nasEnabled {
+                newItem.stage = String(localized: "Checking NAS…")
+            }
+            items.append(newItem)
+            pathToID[normPath] = newItem.id
+            addedAny = true
+        }
+        if addedAny {
+            items.sort { $0.createdAt > $1.createdAt }
+            scheduleSave()
+        }
+
         guard let baseConfig = NASConfig.from([
             "protocol": settings.nasProtocol,
             "host": settings.nasHost,
@@ -730,17 +803,60 @@ final class DownloadStore: ObservableObject {
             onDone?(0, 0, 0)
             return
         }
-        let localRoot = URL(fileURLWithPath: settings.downloadDirectory)
-        let organize = settings.organizeByCategory
+
+        let deleteAfter = settings.nasDeleteLocalAfterUpload
+        nasStatusLine = String(localized: "Checking NAS files…")
         NASUploader.syncLocalFiles(
             localRoot: localRoot,
             baseConfig: baseConfig,
             organizeByCategory: organize,
-            onStatus: { status in
-                DispatchQueue.main.async { onProgress?(status) }
+            deleteLocalAfterUpload: deleteAfter,
+            respectPreviouslySynced: respectHistory,
+            onStatus: { [weak self] status in
+                DispatchQueue.main.async {
+                    self?.nasStatusLine = "\(String(localized: "Uploading to NAS…")) \(status)"
+                    onProgress?(status)
+                }
             },
-            completion: { uploaded, skipped, failed in
-                DispatchQueue.main.async { onDone?(uploaded, skipped, failed) }
+            onFileStart: { [weak self] fileURL, idx, total in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.nasProgress = (idx, total)
+                    let normPath = NASUploader.normalizeNFC(fileURL.path)
+                    if let itemID = pathToID[normPath] ?? self.items.first(where: { NASUploader.normalizeNFC($0.fileName) == NASUploader.normalizeNFC(fileURL.lastPathComponent) })?.id {
+                        self.update(itemID) {
+                            $0.stage = "\(String(localized: "Uploading to NAS…")) (\(idx)/\(total))"
+                        }
+                    }
+                }
+            },
+            onFileOutcome: { [weak self] fileURL, result, idx, total in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.nasProgress = (idx, total)
+                    let normPath = NASUploader.normalizeNFC(fileURL.path)
+                    guard let itemID = pathToID[normPath] ?? self.items.first(where: { NASUploader.normalizeNFC($0.fileName) == NASUploader.normalizeNFC(fileURL.lastPathComponent) })?.id else { return }
+                    switch result {
+                    case .success(let outcome):
+                        switch outcome {
+                        case .uploaded:
+                            self.update(itemID) { $0.stage = String(localized: "NAS upload complete ✓") }
+                        case .skippedExisting:
+                            self.update(itemID) { $0.stage = String(localized: "Already on NAS ✓") }
+                        }
+                    case .failure(let err):
+                        self.update(itemID) { $0.stage = String(localized: "NAS upload failed: \(err.localizedDescription)") }
+                    }
+                    self.scheduleSave()
+                }
+            },
+            completion: { [weak self] uploaded, skipped, failed in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.nasProgress = nil
+                    self.nasStatusLine = String(localized: "NAS sync complete: \(uploaded) uploaded, \(skipped) already on NAS, \(failed) failed ✓")
+                    onDone?(uploaded, skipped, failed)
+                }
             }
         )
     }
