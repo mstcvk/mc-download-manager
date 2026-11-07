@@ -23,19 +23,82 @@ enum NASUploader {
         }
     }
 
-    /// Bağlantıyı test eder. Başarılı ise nil, başarısız ise hata döner.
-    static func testConnection(_ config: NASConfig) -> (ok: Bool, error: String?) {
+    /// Bağlantıyı test eder. Başarılı ise kategori klasörlerini oluşturur ve nil hata döner.
+    static func testConnection(_ config: NASConfig, createCategoryFolders: Bool = true) -> (ok: Bool, error: String?) {
+        let res: (ok: Bool, error: String?)
         switch config.protocol {
         case "smb":
-            return testSMB(config)
+            res = testSMB(config)
         case "ftp":
-            return testCurl(config, scheme: "ftp")
+            res = testCurl(config, scheme: "ftp")
         case "sftp":
-            return testCurl(config, scheme: "sftp")
+            res = testCurl(config, scheme: "sftp")
         case "webdav":
-            return testWebDAV(config)
+            res = testWebDAV(config)
         default:
             return (false, "Unknown protocol: \(config.protocol)")
+        }
+        if res.ok && createCategoryFolders {
+            uploadQueue.async {
+                ensureCategoryDirectories(config)
+            }
+        }
+        return res
+    }
+
+    /// NAS hedef dizini altında kategori klasörlerini (Video, Müzik, Arşiv, Uygulama, Belge, Resim, Diğer) otomatik oluşturur.
+    static func ensureCategoryDirectories(_ config: NASConfig) {
+        let basePath = config.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let prefix = basePath.isEmpty ? "" : "/\(basePath)"
+        let categories = FileCategory.allCases.map(\.label)
+
+        switch config.protocol {
+        case "ftp", "sftp":
+            let port = config.effectivePort
+            let baseEncoded = encodePath(prefix, trailingSlash: false)
+            let url = "\(config.protocol)://\(config.host):\(port)\(baseEncoded)/"
+            var args = [url, "--connect-timeout", "10", "-s", "-S", "--list-only"]
+            if config.protocol == "sftp" { args += ["--insecure"] }
+            for cat in categories {
+                let target = prefix.isEmpty ? "/\(cat)" : "\(prefix)/\(cat)"
+                if config.protocol == "ftp" {
+                    args += ["-Q", "-MKD \(target)"]
+                } else {
+                    args += ["-Q", "-mkdir \(target)"]
+                }
+            }
+            _ = try? runCurl(args: args, config: config)
+        case "smb":
+            let (share, subpath) = splitSMBPath(config.path)
+            guard !share.isEmpty else { return }
+            let mountPoint = FileManager.default.temporaryDirectory.appendingPathComponent("mcdm-nas-init-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
+            defer {
+                let umount = Process()
+                umount.executableURL = URL(fileURLWithPath: "/sbin/umount")
+                umount.arguments = [mountPoint.path]
+                try? umount.run(); umount.waitUntilExit()
+                try? FileManager.default.removeItem(at: mountPoint)
+            }
+            let mount = Process()
+            mount.executableURL = URL(fileURLWithPath: "/sbin/mount_smbfs")
+            mount.arguments = ["-N", buildSMBURL(config, share: share), mountPoint.path]
+            try? mount.run(); mount.waitUntilExit()
+            guard mount.terminationStatus == 0 else { return }
+            let rootDir = subpath.isEmpty ? mountPoint : mountPoint.appendingPathComponent(subpath)
+            for cat in categories {
+                try? FileManager.default.createDirectory(at: rootDir.appendingPathComponent(cat), withIntermediateDirectories: true)
+            }
+        case "webdav":
+            let scheme = config.port == 443 || config.port == 0 ? "https" : "http"
+            let port = config.effectivePort
+            for cat in categories {
+                let catPath = encodePath("\(prefix)/\(cat)", trailingSlash: true)
+                let url = "\(scheme)://\(config.host):\(port)\(catPath)"
+                _ = try? runCurl(args: ["-X", "MKCOL", url, "--connect-timeout", "8", "-s", "--insecure"], config: config)
+            }
+        default:
+            break
         }
     }
 

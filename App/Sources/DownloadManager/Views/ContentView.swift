@@ -123,15 +123,6 @@ struct ContentView: View {
                 .help("Pause all downloads")
             Button { store.clearFinished() } label: { Label("Clear Finished", systemImage: "trash") }
                 .help("Remove completed and cancelled items from the list")
-            Button {
-                settings.nasEnabled.toggle()
-            } label: {
-                Label("NAS", systemImage: "externaldrive.connected.to.line.below")
-                    .foregroundStyle(settings.nasEnabled ? .green : .secondary)
-            }
-            .help(settings.nasEnabled
-                  ? String(localized: "NAS active (\(settings.nasProtocol.uppercased())://\(settings.nasHost)\(settings.nasPath)) — click to disable")
-                  : String(localized: "NAS disabled — click to enable"))
             if #available(macOS 14.0, *) {
                 SettingsLink { Label("Settings", systemImage: "gearshape") }
                     .help("Settings (⌘,)")
@@ -283,19 +274,15 @@ struct ContentView: View {
             } else {
                 Text(server.statusText).font(.caption).foregroundStyle(.secondary)
             }
-            if !settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty {
+            if settings.nasEnabled && !settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty {
                 Divider().frame(height: 12)
                 HStack(spacing: 6) {
-                    Circle().fill(settings.nasEnabled ? Color.green : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
-                    Text(settings.nasEnabled
-                         ? "NAS: \(settings.nasProtocol.uppercased())://\(settings.nasHost)\(settings.nasPath.hasPrefix("/") ? settings.nasPath : "/" + settings.nasPath)"
-                         : String(localized: "NAS: Off"))
+                    Circle().fill(Color.green).frame(width: 7, height: 7)
+                    Text("NAS: \(settings.nasProtocol.uppercased())://\(settings.nasHost)\(settings.nasPath.hasPrefix("/") ? settings.nasPath : "/" + settings.nasPath)")
                         .font(.caption)
-                        .foregroundStyle(settings.nasEnabled ? .primary : .secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                .onTapGesture { settings.nasEnabled.toggle() }
-                .help(String(localized: "Click to toggle NAS upload"))
             }
             Spacer()
             Label("\(store.items.filter { !$0.isFinished }.count)", systemImage: "list.bullet")

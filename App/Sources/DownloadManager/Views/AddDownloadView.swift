@@ -18,8 +18,6 @@ struct AddDownloadView: View {
                 .frame(height: 110)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
             Toggle("Download video from page (yt-dlp)", isOn: $asVideo)
-            Toggle("Download to NAS", isOn: $settings.nasEnabled)
-                .disabled(settings.nasHost.trimmingCharacters(in: .whitespaces).isEmpty)
             if !asVideo {
                 Stepper(value: $segments, in: 0...16) {
                     if segments == 0 {

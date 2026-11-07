@@ -54,6 +54,11 @@ final class DownloadStore: ObservableObject {
         try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
         storeURL = supportDir.appendingPathComponent("downloads.json")
         load()
+        if settings.organizeByCategory, let cfg = settings.nasConfig {
+            DispatchQueue.global(qos: .utility).async {
+                NASUploader.ensureCategoryDirectories(cfg)
+            }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.tick() }
     }
 
@@ -67,6 +72,21 @@ final class DownloadStore: ObservableObject {
 
     func destinationURL(for item: DownloadItem) -> URL {
         destinationDirectory(for: item).appendingPathComponent(item.fileName)
+    }
+
+    /// Öğe için kategori alt klasörünü de içeren nihai NAS yapılandırmasını döner.
+    func resolvedNASConfig(for item: DownloadItem, fileURL: URL? = nil) -> NASConfig? {
+        guard var cfg = item.nas ?? settings.nasConfig, cfg.enabled else { return nil }
+        if cfg.pass.isEmpty { cfg.pass = settings.nasPass }
+        if settings.organizeByCategory {
+            let name = fileURL?.lastPathComponent ?? item.fileName
+            let catLabel = FileCategory.detect(fileName: name, kind: item.kind).label
+            let cleanPath = cfg.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if !cleanPath.hasSuffix(catLabel) {
+                cfg.path = cleanPath.isEmpty ? "/\(catLabel)" : "/\(cleanPath)/\(catLabel)"
+            }
+        }
+        return cfg
     }
 
     var activeCount: Int { items.filter { $0.state.isActive }.count }
@@ -238,12 +258,7 @@ final class DownloadStore: ObservableObject {
                 if item.totalBytes <= 0 { item.totalBytes = item.receivedBytes }
                 items[i] = item
                 // NAS'a yükleme
-                if let nasConfig = item.nas ?? settings.nasConfig, nasConfig.enabled {
-                    let nasPassSynced: NASConfig = {
-                        var c = nasConfig
-                        if c.pass.isEmpty { c.pass = settings.nasPass }
-                        return c
-                    }()
+                if let nasPassSynced = resolvedNASConfig(for: item, fileURL: dest) {
                     update(id) { $0.stage = String(localized: "Uploading to NAS…") }
                     NASUploader.upload(file: dest, config: nasPassSynced) { [weak self] uploadResult in
                         DispatchQueue.main.async {
@@ -444,14 +459,12 @@ final class DownloadStore: ObservableObject {
             },
             onFile: { [weak self] filePath in
                 DispatchQueue.main.async {
-                    guard let self, let item = self.items.first(where: { $0.id == id }),
-                          let nasConfig = item.nas ?? self.settings.nasConfig, nasConfig.enabled else { return }
-                    var c = nasConfig
-                    if c.pass.isEmpty { c.pass = self.settings.nasPass }
+                    guard let self, let item = self.items.first(where: { $0.id == id }) else { return }
                     let fileURL = URL(fileURLWithPath: filePath)
+                    guard let c = self.resolvedNASConfig(for: item, fileURL: fileURL) else { return }
                     self.update(id) {
                         $0.stage = String(localized: "Uploading to NAS…")
-                        $0.log = String(($0.log + "[NAS] \(String(localized: "Uploading to NAS…")) \(fileURL.lastPathComponent)\n").suffix(6000))
+                        $0.log = String(($0.log + "[NAS] \(String(localized: "Uploading to NAS…")) \(fileURL.lastPathComponent) → \(c.path)\n").suffix(6000))
                     }
                     NASUploader.upload(file: fileURL, config: c) { [weak self] uploadResult in
                         DispatchQueue.main.async {
@@ -460,7 +473,7 @@ final class DownloadStore: ObservableObject {
                             case .success:
                                 self.update(id) {
                                     $0.stage = String(localized: "NAS upload complete ✓")
-                                    $0.log = String(($0.log + "[NAS] \(String(localized: "NAS upload complete ✓")) (\(fileURL.lastPathComponent))\n").suffix(6000))
+                                    $0.log = String(($0.log + "[NAS] \(String(localized: "NAS upload complete ✓")) (\(c.path)/\(fileURL.lastPathComponent))\n").suffix(6000))
                                 }
                             case .failure(let err):
                                 self.update(id) {
@@ -654,7 +667,7 @@ final class DownloadStore: ObservableObject {
             guard FileManager.default.fileExists(atPath: candidate.path) else { return }
             fileURL = candidate
         }
-        guard var cfg = item.nas ?? settings.nasConfig ?? NASConfig.from([
+        guard var cfg = resolvedNASConfig(for: item, fileURL: fileURL) ?? NASConfig.from([
             "protocol": settings.nasProtocol,
             "host": settings.nasHost,
             "port": settings.nasPort,
@@ -663,6 +676,13 @@ final class DownloadStore: ObservableObject {
             "path": settings.nasPath,
         ]) else { return }
         if cfg.pass.isEmpty { cfg.pass = settings.nasPass }
+        if settings.organizeByCategory {
+            let catLabel = FileCategory.detect(fileName: fileURL.lastPathComponent, kind: item.kind).label
+            let cleanPath = cfg.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if !cleanPath.hasSuffix(catLabel) {
+                cfg.path = cleanPath.isEmpty ? "/\(catLabel)" : "/\(cleanPath)/\(catLabel)"
+            }
+        }
         update(id) { $0.stage = String(localized: "Uploading to NAS…") }
         NASUploader.upload(file: fileURL, config: cfg) { [weak self] uploadResult in
             DispatchQueue.main.async {
