@@ -152,18 +152,49 @@ enum NASUploader {
                 for sub in subFiles {
                     let isReg = (try? sub.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false
                     if isReg && isCompletedDownloadFile(sub.lastPathComponent) {
-                        results.append((sub, nameNFC))
+                        let cleaned = stripBracketIDIfNeeded(at: sub)
+                        results.append((cleaned, nameNFC))
                     }
                 }
             } else {
                 let isReg = (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false
                 if isReg && isCompletedDownloadFile(nameNFC) {
-                    let cat = organizeByCategory ? normalizeNFC(FileCategory.detect(fileName: nameNFC, kind: .file).label) : nil
-                    results.append((entry, cat))
+                    let cleaned = stripBracketIDIfNeeded(at: entry)
+                    let cat = organizeByCategory ? normalizeNFC(FileCategory.detect(fileName: cleaned.lastPathComponent, kind: .file).label) : nil
+                    results.append((cleaned, cat))
                 }
             }
         }
         return results
+    }
+
+    /// Dosya adının sonundaki yt-dlp video kimliğini (örn. "Kal Benim İçin [RRDMZWFHQIM].mp4" -> "Kal Benim İçin.mp4") temizler.
+    static func stripBracketID(_ fileName: String) -> String {
+        let normalized = normalizeNFC(fileName)
+        guard let range = normalized.range(
+            of: "\\s*\\[[A-Za-z0-9_-]{6,20}\\](?=\\.[A-Za-z0-9]+$)",
+            options: .regularExpression
+        ) else {
+            return normalized
+        }
+        var cleaned = normalized
+        cleaned.removeSubrange(range)
+        let trimmed = cleaned.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix(".") ? normalized : trimmed
+    }
+
+    /// Yerel dosyada "[videoId]" eki varsa disk üzerinde temiz isme yeniden adlandırır ve yeni URL'yi döner.
+    static func stripBracketIDIfNeeded(at fileURL: URL) -> URL {
+        let originalName = fileURL.lastPathComponent
+        let cleanedName = stripBracketID(originalName)
+        guard cleanedName != normalizeNFC(originalName) else { return fileURL }
+        let targetURL = fileURL.deletingLastPathComponent().appendingPathComponent(cleanedName)
+        if !FileManager.default.fileExists(atPath: targetURL.path) {
+            if (try? FileManager.default.moveItem(at: fileURL, to: targetURL)) != nil {
+                return targetURL
+            }
+        }
+        return fileURL
     }
 
     /// Geçici, yarım kalmış (.part, .ytdl, .temp) veya yt-dlp'nin henüz birleştirmediği (.f137.mp4 vb.) dosyaları eler.

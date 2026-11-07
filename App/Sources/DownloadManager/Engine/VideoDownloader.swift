@@ -153,7 +153,7 @@ enum VideoDownloader {
         var args = [
             "--newline", "--no-playlist", "--no-colors", "--progress", "--no-simulate", "--no-mtime", "--no-quiet",
             "-N", "4",
-            "-o", outputDir.appendingPathComponent("%(title).150B [%(id)s].%(ext)s").path,
+            "-o", outputDir.appendingPathComponent("%(title).150B.%(ext)s").path,
             "--progress-template",
             "download:DMP|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s",
             "--print", "after_move:filepath",
