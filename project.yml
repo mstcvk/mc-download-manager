@@ -56,6 +56,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.mesutcevik.mcdownloadmanager
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_IDENTITY: "-"
+        SWIFT_OBJC_BRIDGING_HEADER: App/Sources/DownloadManager/Engine/CurlBridge.h
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-lcurl"
     dependencies:
       - target: SafariExtension
         embed: true

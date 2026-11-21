@@ -40,6 +40,8 @@ final class DownloadStore: ObservableObject {
     /// Hosts the extensions must leave to the browser for a short while (a download handed back to the browser).
     private var browserBypass: [String: Date] = [:]
     private var samples: [UUID: (bytes: Int64, time: Date)] = [:]
+    private var networkBytes: [UUID: [String: Int64]] = [:]
+    private var networkSamples: [UUID: (bytes: [String: Int64], time: Date)] = [:]
     private var timer: Timer?
     private var saveWork: DispatchWorkItem?
     private var tickCount = 0
@@ -159,7 +161,8 @@ final class DownloadStore: ObservableObject {
             && FileManager.default.fileExists(atPath: item.partURL.path)
         var cfg = SegmentedDownloader.Configuration(
             url: item.url, headers: item.headers, partURL: item.partURL,
-            segmentCount: item.requestedSegments > 0 ? item.requestedSegments : settings.segmentCount)
+            segmentCount: item.requestedSegments > 0 ? item.requestedSegments : settings.segmentCount,
+            interfaces: NetworkInterfaceMonitor.shared.activeInterfacesForDownload(settings: settings))
         if resumable {
             cfg.resumeSegments = item.segments
             cfg.resumeTotal = item.totalBytes
@@ -182,6 +185,12 @@ final class DownloadStore: ObservableObject {
                 }
             }
         }
+        dl.onNetworkBytes = { [weak self, weak dl] byIface in
+            DispatchQueue.main.async {
+                guard let self, self.downloaders[id] === dl else { return }
+                self.networkBytes[id] = byIface
+            }
+        }
         dl.onFinish = { [weak self, weak dl] result in
             DispatchQueue.main.async {
                 guard let self, self.downloaders[id] === dl else { return }
@@ -189,10 +198,13 @@ final class DownloadStore: ObservableObject {
             }
         }
         downloaders[id] = dl
+        networkBytes[id] = nil
+        networkSamples[id] = nil
         update(id) {
             $0.state = resumable ? .downloading : .probing
             $0.errorMessage = nil
             $0.speed = 0
+            $0.networkSpeeds = [:]
             if !resumable { $0.receivedBytes = 0; $0.segments = [] }
         }
         dl.start()
@@ -610,8 +622,26 @@ final class DownloadStore: ObservableObject {
                 }
             }
             samples[id] = (bytes, now)
+            if let curNet = networkBytes[id], !curNet.isEmpty {
+                if let prev = networkSamples[id] {
+                    let dt = now.timeIntervalSince(prev.time)
+                    if dt > 0 {
+                        var speeds = items[i].networkSpeeds
+                        for (name, total) in curNet {
+                            let delta = max(0, total - (prev.bytes[name] ?? 0))
+                            let inst = Double(delta) / dt
+                            let old = speeds[name] ?? 0
+                            speeds[name] = old == 0 ? inst : old * 0.6 + inst * 0.4
+                        }
+                        items[i].networkSpeeds = speeds
+                    }
+                }
+                networkSamples[id] = (curNet, now)
+            }
         }
         samples = samples.filter { activeIDs.contains($0.key) }
+        networkBytes = networkBytes.filter { activeIDs.contains($0.key) }
+        networkSamples = networkSamples.filter { activeIDs.contains($0.key) }
         DetailWindowManager.shared.refreshTitles(items: items)
         tickCount += 1
         if !activeIDs.isEmpty, tickCount % 10 == 0 { save() }   // parça durumu 5 sn'de bir diske

@@ -17,6 +17,7 @@ struct ContentView: View {
     @EnvironmentObject var store: DownloadStore
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var server: ServerController
+    @ObservedObject private var networkMonitor = NetworkInterfaceMonitor.shared
     @State private var showAdd = false
     @State private var sidebar: SidebarItem? = .all
     @State private var selection = Set<UUID>()
@@ -264,6 +265,12 @@ struct ContentView: View {
                 Text(server.statusText).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            let activeNets = networkMonitor.activeInterfacesForDownload(settings: settings)
+            if activeNets.count >= 2 {
+                Label("\(activeNets.count) networks", systemImage: "bolt.horizontal.fill")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.green)
+                    .help(activeNets.map(\.shortLabel).joined(separator: " + "))
+            }
             Label("\(store.items.filter { !$0.isFinished }.count)", systemImage: "list.bullet")
                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 .help("Unfinished downloads")

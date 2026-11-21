@@ -96,6 +96,14 @@ struct DownloadDetailView: View {
                 Text("Transfer rate").foregroundStyle(.secondary)
                 Text(item.state == .downloading ? Fmt.speed(item.speed) : "—")
             }
+            if !item.networkSpeeds.isEmpty {
+                GridRow {
+                    Text("Networks").foregroundStyle(.secondary)
+                    Text(networkBreakdown(item))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
             GridRow {
                 Text("Time left").foregroundStyle(.secondary)
                 Text(item.eta.map(Fmt.duration) ?? "—")
@@ -182,9 +190,10 @@ struct DownloadDetailView: View {
                        tint: item.state == .paused ? .secondary : .accentColor)
                 .frame(height: 12)
             Table(connectionRows(item)) {
-                TableColumn("N.") { Text("\($0.index)") }.width(36)
-                TableColumn("Downloaded") { Text(Fmt.size($0.received)) }.width(110)
-                TableColumn("Start") { Text(Fmt.size($0.start)) }.width(110)
+                TableColumn("N.") { Text("\($0.index)") }.width(32)
+                TableColumn("Network") { Text($0.network).lineLimit(1) }.width(min: 80, ideal: 110)
+                TableColumn("Downloaded") { Text(Fmt.size($0.received)) }.width(95)
+                TableColumn("Start") { Text(Fmt.size($0.start)) }.width(95)
                 TableColumn("Info") { Text($0.info) }
             }
             .font(.callout.monospacedDigit())
@@ -192,9 +201,17 @@ struct DownloadDetailView: View {
         }
     }
 
+    private func networkBreakdown(_ item: DownloadItem) -> String {
+        item.networkSpeeds
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key): \(Fmt.speed($0.value))" }
+            .joined(separator: "  ·  ")
+    }
+
     private struct ConnRow: Identifiable {
         let id: Int
         var index: Int { id + 1 }
+        let network: String
         let received: Int64
         let start: Int64
         let info: String
@@ -210,7 +227,7 @@ struct DownloadDetailView: View {
             case .paused: info = String(localized: "Paused")
             default: info = item.state.label
             }
-            return [ConnRow(id: 0, received: item.receivedBytes, start: 0, info: info)]
+            return [ConnRow(id: 0, network: "Default", received: item.receivedBytes, start: 0, info: info)]
         }
         return item.segments.enumerated().map { i, s in
             let info: String
@@ -218,7 +235,7 @@ struct DownloadDetailView: View {
             else if item.state == .downloading { info = s.received == 0 ? String(localized: "Sending GET…") : String(localized: "Receiving data…") }
             else if item.state == .paused { info = String(localized: "Paused") }
             else { info = item.state.label }
-            return ConnRow(id: i, received: s.received, start: s.start, info: info)
+            return ConnRow(id: i, network: s.interfaceName ?? "Default", received: s.received, start: s.start, info: info)
         }
     }
 

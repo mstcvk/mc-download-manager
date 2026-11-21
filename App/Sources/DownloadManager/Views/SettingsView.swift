@@ -9,11 +9,12 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "gear") }
+            NetworkSettings().tabItem { Label("Networks", systemImage: "network") }
             FileTypesSettings().tabItem { Label("File Types", systemImage: "doc.badge.gearshape") }
             BrowserSettings().tabItem { Label("Browser Extensions", systemImage: "puzzlepiece.extension") }
             VideoSettings().tabItem { Label("Video", systemImage: "film") }
         }
-        .frame(width: 600, height: 520)
+        .frame(width: 620, height: 540)
     }
 }
 
@@ -105,6 +106,108 @@ struct GeneralSettings: View {
             loginError = error.localizedDescription
             launchAtLogin = LoginItem.isEnabled
         }
+    }
+}
+
+// MARK: - Networks (Multi-Network Aggregation)
+
+struct NetworkSettings: View {
+    @EnvironmentObject var settings: AppSettings
+    @ObservedObject private var monitor = NetworkInterfaceMonitor.shared
+
+    private var activeForDownload: [NetworkInterfaceInfo] {
+        monitor.activeInterfacesForDownload(settings: settings)
+    }
+
+    var body: some View {
+        Form {
+            Section("Multi-Network Download Acceleration") {
+                Toggle("Combine multiple internet connections (Wi-Fi + Ethernet + USB Hotspot)", isOn: $settings.multiNetworkEnabled)
+                Text("When two or more internet connections are active, MC Download Manager distributes download segments across each adapter and dynamically splits slow segments so faster connections finish them.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if settings.multiNetworkEnabled {
+                    Toggle("Automatically use all active physical connections", isOn: $settings.multiNetworkAutoSelect)
+                }
+            }
+
+            Section {
+                HStack {
+                    if activeForDownload.count >= 2 {
+                        Label("Combining \(activeForDownload.count) active networks", systemImage: "bolt.horizontal.fill")
+                            .foregroundStyle(.green)
+                    } else if settings.multiNetworkEnabled {
+                        Label("Single network active (connect another network to combine speeds)", systemImage: "info.circle")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("Multi-network disabled (using macOS default route)", systemImage: "minus.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Refresh") { monitor.refresh() }
+                }
+
+                if settings.multiNetworkEnabled, activeForDownload.count >= 2,
+                   NetworkInterfaceMonitor.hasSharedSubnet(activeForDownload) {
+                    Label("Two or more selected interfaces share the same local subnet (same router). Speed only increases if they use different internet uplinks (e.g. Wi-Fi + Mobile Hotspot or two ISPs).", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                if monitor.interfaces.isEmpty {
+                    Text("No active network interfaces detected.").foregroundStyle(.secondary)
+                } else {
+                    ForEach(monitor.interfaces) { iface in
+                        HStack(spacing: 10) {
+                            Image(systemName: iface.kind.symbol)
+                                .frame(width: 20)
+                                .foregroundStyle(isIncluded(iface) ? Color.accentColor : Color.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text(iface.displayName)
+                                    Text(iface.device)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.secondary)
+                                }
+                                HStack(spacing: 8) {
+                                    if let v4 = iface.ipv4Address {
+                                        Text(v4).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                    }
+                                    if let v6 = iface.ipv6Address {
+                                        Text(v6).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                                    }
+                                }
+                            }
+                            Spacer()
+                            if settings.multiNetworkEnabled {
+                                if settings.multiNetworkAutoSelect {
+                                    Text(iface.kind.isAutoSelectable ? String(localized: "Auto") : String(localized: "Excluded"))
+                                        .font(.caption)
+                                        .foregroundStyle(iface.kind.isAutoSelectable ? .green : .secondary)
+                                } else {
+                                    Toggle("", isOn: Binding(
+                                        get: { settings.selectedNetworkIDs.contains(iface.id) },
+                                        set: { on in
+                                            if on { settings.selectedNetworkIDs.insert(iface.id) }
+                                            else { settings.selectedNetworkIDs.remove(iface.id) }
+                                        }
+                                    ))
+                                    .labelsHidden()
+                                }
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            } header: {
+                Text("Detected Network Interfaces")
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { monitor.refresh() }
+    }
+
+    private func isIncluded(_ iface: NetworkInterfaceInfo) -> Bool {
+        activeForDownload.contains(where: { $0.id == iface.id })
     }
 }
 

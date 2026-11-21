@@ -27,6 +27,8 @@ struct SegmentInfo: Codable, Equatable {
     var start: Int64
     var end: Int64          // inclusive
     var received: Int64 = 0
+    var interfaceDevice: String? = nil
+    var interfaceName: String? = nil
 
     var length: Int64 { end - start + 1 }
     var isDone: Bool { received >= length }
@@ -54,6 +56,7 @@ struct DownloadItem: Identifiable, Codable, Equatable {
 
     // Kalıcı olmayan alanlar
     var speed: Double = 0
+    var networkSpeeds: [String: Double] = [:]   // interface displayName -> bytes/sec
     var log: String = ""
     var stage: String = ""      // yt-dlp: current phase (downloading video/audio, merging…)
     var lastHTTPStatus: Int? = nil

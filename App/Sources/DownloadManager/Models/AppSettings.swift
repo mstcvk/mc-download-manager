@@ -34,6 +34,12 @@ final class AppSettings: ObservableObject {
 
     /// Sites whose downloads stay in the browser (hosts without "www."; subdomains match too).
     @Published var browserOnlySites: [String] { didSet { defaults.set(browserOnlySites, forKey: "browserOnlySites") } }
+    /// Combine multiple active network interfaces (e.g. Wi-Fi + Ethernet + iPhone USB) for faster downloads.
+    @Published var multiNetworkEnabled: Bool { didSet { defaults.set(multiNetworkEnabled, forKey: "multiNetworkEnabled") } }
+    /// Automatically use all active physical network interfaces instead of a manual subset.
+    @Published var multiNetworkAutoSelect: Bool { didSet { defaults.set(multiNetworkAutoSelect, forKey: "multiNetworkAutoSelect") } }
+    /// Manually selected BSD interface device IDs (e.g. ["en0", "en5"]) when multiNetworkAutoSelect is off.
+    @Published var selectedNetworkIDs: Set<String> { didSet { defaults.set(Array(selectedNetworkIDs).sorted(), forKey: "selectedNetworkIDs") } }
 
     static func siteKey(_ host: String?) -> String? {
         guard var h = host?.lowercased().trimmingCharacters(in: .whitespaces), !h.isEmpty else { return nil }
@@ -79,6 +85,9 @@ final class AppSettings: ObservableObject {
         loginItemAutoRegistered = defaults.object(forKey: "loginItemAutoRegistered") as? Bool ?? false
         denoPromptSuppressed = defaults.object(forKey: "denoPromptSuppressed") as? Bool ?? false
         browserOnlySites = defaults.stringArray(forKey: "browserOnlySites") ?? []
+        multiNetworkEnabled = defaults.object(forKey: "multiNetworkEnabled") as? Bool ?? true
+        multiNetworkAutoSelect = defaults.object(forKey: "multiNetworkAutoSelect") as? Bool ?? true
+        selectedNetworkIDs = Set(defaults.stringArray(forKey: "selectedNetworkIDs") ?? [])
     }
 
     /// yt-dlp arguments for the chosen format/quality.
