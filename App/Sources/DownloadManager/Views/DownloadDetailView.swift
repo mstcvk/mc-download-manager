@@ -21,7 +21,7 @@ struct DownloadDetailView: View {
                 }
             }
             .padding(16)
-            .frame(minWidth: 520, idealWidth: 560)
+            .frame(minWidth: 650, idealWidth: 680)
         } else {
             Text("This download was removed from the list.").padding()
         }
@@ -30,10 +30,18 @@ struct DownloadDetailView: View {
     // MARK: - İndirme sürerken
 
     private func activeView(_ item: DownloadItem) -> some View {
-        VStack(spacing: 14) {
+        let groups = item.networkStreamGroups(settings: settings)
+        return VStack(spacing: 12) {
+            if item.kind == .file {
+                MultiNetworkHeroView(item: item, groups: groups)
+            }
             infoGrid(item)
-            ProgressView(value: item.totalBytes > 0 ? item.progress : 0)
-                .progressViewStyle(.linear)
+            if item.kind == .file {
+                NetworkChunkGridView(item: item, groups: groups)
+            } else {
+                ProgressView(value: item.totalBytes > 0 ? item.progress : 0)
+                    .progressViewStyle(.linear)
+            }
             HStack(spacing: 12) {
                 Button(showDetails ? "<< Hide Details" : "Show Details >>") {
                     withAnimation { showDetails.toggle() }
@@ -62,11 +70,11 @@ struct DownloadDetailView: View {
                 }
             }
             if showDetails {
-                Divider()
                 if item.kind == .video {
+                    Divider()
                     logView(item)
                 } else {
-                    connections(item)
+                    NetworkStreamTableView(item: item, groups: groups)
                 }
             }
         }
@@ -341,10 +349,10 @@ final class DetailWindowManager {
     private let model = DownloadPanelModel()
     private var compact = false
 
-    static let fullHeight: CGFloat = 540
-    static let compactHeight: CGFloat = 290
+    static let fullHeight: CGFloat = 650
+    static let compactHeight: CGFloat = 390
     static let completedHeight: CGFloat = 250
-    static let detailWidth: CGFloat = 560
+    static let detailWidth: CGFloat = 680
     static let listWidth: CGFloat = 230
 
     private var showsList: Bool { model.tracked.count > 1 }

@@ -56,7 +56,13 @@ struct DownloadItem: Identifiable, Codable, Equatable {
 
     // Kalıcı olmayan alanlar
     var speed: Double = 0
+    var peakSpeed: Double = 0
+    var startedAt: Date? = nil
     var networkSpeeds: [String: Double] = [:]   // interface displayName -> bytes/sec
+    var networkBytes: [String: Int64] = [:]     // interface displayName -> cumulative bytes
+    var speedHistory: [[String: Double]] = []   // rolling history (up to 60 samples) of per-network speeds
+    var disabledNetworks: Set<String> = []      // interface displayNames toggled off for this download
+    var allowedNetworkIDs: Set<String>? = nil   // optional per-download interface device filter from AddDownloadView
     var log: String = ""
     var stage: String = ""      // yt-dlp: current phase (downloading video/audio, merging…)
     var lastHTTPStatus: Int? = nil

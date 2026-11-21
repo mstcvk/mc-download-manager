@@ -48,6 +48,10 @@ int mc_curl_setopt_nosignal(void *handle, long enable) {
     return (int)curl_easy_setopt((CURL *)handle, CURLOPT_NOSIGNAL, enable);
 }
 
+int mc_curl_setopt_ipresolve(void *handle, long mode) {
+    return (int)curl_easy_setopt((CURL *)handle, CURLOPT_IPRESOLVE, mode);
+}
+
 int mc_curl_setopt_connecttimeout(void *handle, long seconds) {
     return (int)curl_easy_setopt((CURL *)handle, CURLOPT_CONNECTTIMEOUT, seconds);
 }

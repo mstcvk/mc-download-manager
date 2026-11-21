@@ -64,6 +64,7 @@ final class NetworkInterfaceMonitor: ObservableObject {
     static let shared = NetworkInterfaceMonitor()
 
     @Published private(set) var interfaces: [NetworkInterfaceInfo] = []
+    @Published private(set) var pingMs: [String: Int] = [:]
 
     private let queue = DispatchQueue(label: "dm.network-monitor", qos: .utility)
     private let pathMonitor = NWPathMonitor()
@@ -96,7 +97,68 @@ final class NetworkInterfaceMonitor: ObservableObject {
                     self.interfaces = list
                 }
             }
+            self.measurePings(for: list)
         }
+    }
+
+    /// Measures TCP handshake latency (in ms) to 1.1.1.1:443 pinned to each interface via IP_BOUND_IF.
+    func measurePings(for list: [NetworkInterfaceInfo]? = nil) {
+        let targets = list ?? interfaces
+        for iface in targets where iface.ipv4Address != nil {
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let ms = Self.tcpPing(device: iface.device, host: "1.1.1.1", port: 443, timeoutMs: 1500)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if let ms {
+                        self.pingMs[iface.device] = ms
+                    } else {
+                        self.pingMs.removeValue(forKey: iface.device)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func tcpPing(device: String, host: String, port: UInt16, timeoutMs: Int32) -> Int? {
+        let ifIndex = if_nametoindex(device)
+        guard ifIndex != 0 else { return nil }
+
+        let fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+
+        var idx = ifIndex
+        guard setsockopt(fd, IPPROTO_IP, IP_BOUND_IF, &idx, socklen_t(MemoryLayout<UInt32>.size)) == 0 else {
+            return nil
+        }
+
+        let flags = fcntl(fd, F_GETFL, 0)
+        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        inet_pton(AF_INET, host, &addr.sin_addr)
+
+        let t0 = DispatchTime.now().uptimeNanoseconds
+        let rc = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        if rc != 0 && errno != EINPROGRESS { return nil }
+
+        var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+        let ready = poll(&pfd, 1, timeoutMs)
+        guard ready > 0, (pfd.revents & Int16(POLLOUT)) != 0 else { return nil }
+
+        var soErr: Int32 = 0
+        var soLen = socklen_t(MemoryLayout<Int32>.size)
+        guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &soLen) == 0, soErr == 0 else { return nil }
+
+        let dtNs = DispatchTime.now().uptimeNanoseconds - t0
+        return max(1, Int(dtNs / 1_000_000))
     }
 
     /// Interfaces to use for a download based on current settings.

@@ -36,6 +36,7 @@ final class CurlStreamTask {
     private let range: String?                  // e.g. "0-1048575" (without "bytes=")
     private let interfaceDevice: String?        // e.g. "en0"
     private let interfaceAddress: String?       // fallback local IP if "if!<dev>" fails
+    private let ipv4Only: Bool                  // force IPv4 when interface has no IPv6
     private let originHost: String?
     private let originScheme: String?
 
@@ -62,6 +63,7 @@ final class CurlStreamTask {
         range: String?,
         interfaceDevice: String?,
         interfaceAddress: String?,
+        ipv4Only: Bool = false,
         originHost: String?,
         originScheme: String?,
         onHeaders: @escaping (CurlHTTPResponse) -> Bool,
@@ -74,6 +76,7 @@ final class CurlStreamTask {
         self.range = range
         self.interfaceDevice = interfaceDevice
         self.interfaceAddress = interfaceAddress
+        self.ipv4Only = ipv4Only
         self.originHost = originHost?.lowercased()
         self.originScheme = originScheme?.lowercased()
         self.onHeaders = onHeaders
@@ -154,6 +157,9 @@ final class CurlStreamTask {
             _ = mc_curl_setopt_httpheader(handle, slist)
             _ = mc_curl_setopt_followlocation(handle, 0) // manual redirects for same-origin credential safety
             _ = mc_curl_setopt_nosignal(handle, 1)
+            if ipv4Only {
+                _ = mc_curl_setopt_ipresolve(handle, 1) // CURL_IPRESOLVE_V4
+            }
             _ = mc_curl_setopt_connecttimeout(handle, 15)
             _ = mc_curl_setopt_low_speed(handle, 1, 30)
             _ = mc_curl_setopt_tcp_keepalive(handle, 1)

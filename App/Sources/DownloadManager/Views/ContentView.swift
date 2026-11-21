@@ -360,7 +360,8 @@ struct SegmentBar: View {
                 for s in segments where s.received > 0 {
                     let x = CGFloat(s.start) / CGFloat(total) * size.width
                     let w = CGFloat(s.received) / CGFloat(total) * size.width
-                    ctx.fill(Path(CGRect(x: x, y: 0, width: max(w, 1), height: size.height)), with: .color(tint))
+                    let segColor = s.interfaceName.map { NetworkPalette.color(for: $0) } ?? tint
+                    ctx.fill(Path(CGRect(x: x, y: 0, width: max(w, 1), height: size.height)), with: .color(segColor))
                 }
                 for s in segments.dropFirst() {
                     let x = CGFloat(s.start) / CGFloat(total) * size.width

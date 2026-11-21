@@ -3571,6 +3571,386 @@
           }
         }
       }
+    },
+    "TOTAL SPEED": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TOPLAM HIZ"
+          }
+        }
+      }
+    },
+    "THROUGHPUT · LAST 30S": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AKTARIM · SON 30 SN"
+          }
+        }
+      }
+    },
+    "NETWORK": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AĞ"
+          }
+        }
+      }
+    },
+    "PROGRESS": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İLERLEME"
+          }
+        }
+      }
+    },
+    "SHARE": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAY"
+          }
+        }
+      }
+    },
+    "SPEED": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HIZ"
+          }
+        }
+      }
+    },
+    "DOWNLOADED": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İNDİRİLEN"
+          }
+        }
+      }
+    },
+    "ACTIVE": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AKTİF"
+          }
+        }
+      }
+    },
+    "DONE": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BİTTİ"
+          }
+        }
+      }
+    },
+    "Off": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapalı"
+          }
+        }
+      }
+    },
+    "LINK (ONE URL PER LINE)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LİNK (HER SATIRA BİR URL)"
+          }
+        }
+      }
+    },
+    "SAVE TO": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KAYIT YERİ"
+          }
+        }
+      }
+    },
+    "Browse…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gözat…"
+          }
+        }
+      }
+    },
+    "PARALLEL STREAMS": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PARALEL BAĞLANTI"
+          }
+        }
+      }
+    },
+    "NETWORKS": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AĞLAR"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlat"
+          }
+        }
+      }
+    },
+    "network selected": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ağ seçili"
+          }
+        }
+      }
+    },
+    "networks selected": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ağ seçili"
+          }
+        }
+      }
+    },
+    "parallel streams": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "paralel bağlantı"
+          }
+        }
+      }
+    },
+    "MERGED": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BİRLEŞİK"
+          }
+        }
+      }
+    },
+    "PAUSED": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DURAKLATILDI"
+          }
+        }
+      }
+    },
+    "OFF": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KAPALI"
+          }
+        }
+      }
+    },
+    "· %lld MERGED": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %lld BİRLEŞİK"
+          }
+        }
+      }
+    },
+    "AVG": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ORT"
+          }
+        }
+      }
+    },
+    "PEAK": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZİRVE"
+          }
+        }
+      }
+    },
+    "%@× %@ ALONE": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@× SADECE %2$@"
+          }
+        }
+      }
+    },
+    "%@× faster than %@ alone": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek başına %2$@ bağlantısından %1$@× daha hızlı"
+          }
+        }
+      }
+    },
+    "%lld chunks (%lld completed)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld parça (%2$lld tamamlandı)"
+          }
+        }
+      }
+    },
+    "Chunk #%lld · %@ / %@ · %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parça #%1$lld · %2$@ / %3$@ · %4$@"
+          }
+        }
+      }
+    },
+    "%lld streams": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld bağlantı"
+          }
+        }
+      }
+    },
+    "Stream #%lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı #%lld"
+          }
+        }
+      }
+    },
+    "Chunk #%lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parça #%lld"
+          }
+        }
+      }
+    },
+    "Enable or disable %@ for this download": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu indirme için %@ ağını etkinleştir veya devre dışı bırak"
+          }
+        }
+      }
+    },
+    "PASTE ⌘V": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "YAPIŞTIR ⌘V"
+          }
+        }
+      }
+    },
+    "PING": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PİNG"
+          }
+        }
+      }
+    },
+    "%lld / network  ·  %lld total parallel streams": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ağ başına %1$lld  ·  Toplam %2$lld paralel bağlantı"
+          }
+        }
+      }
+    },
+    "%lld detected  ·  %lld selected": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld algılandı  ·  %2$lld seçili"
+          }
+        }
+      }
+    },
+    "%lld networks selected  ·  %lld parallel streams": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld ağ seçili  ·  %2$lld paralel bağlantı"
+          }
+        }
+      }
     }
   }
 }

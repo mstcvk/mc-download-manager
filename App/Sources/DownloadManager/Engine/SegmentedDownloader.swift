@@ -67,6 +67,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private var throttledUntil = Date.distantPast
     private static let maxAttempts = 12
     private var probeTask: URLSessionDataTask?
+    private var curlProbeTask: CurlStreamTask?
     private var singleTask: URLSessionDataTask?
     private var singleReceived: Int64 = 0
     private var singleTotal: Int64 = -1
@@ -177,6 +178,8 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     }
 
     private func cancelAllCurlTasks() {
+        curlProbeTask?.cancel()
+        curlProbeTask = nil
         let tasks = curlTasks
         curlTasks = [:]
         tasks.values.forEach { $0.task.cancel() }
@@ -212,9 +215,115 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     private func probe() {
         mode = .probing
+        let candidates = healthyInterfaces
+        if !candidates.isEmpty {
+            probeWithCurl(candidates: candidates, index: 0)
+        } else {
+            probeWithURLSession()
+        }
+    }
+
+    private func probeWithURLSession() {
         let t = session.dataTask(with: makeRequest(range: "bytes=0-0"))
         probeTask = t
         t.resume()
+    }
+
+    private func probeWithCurl(candidates: [NetworkInterfaceInfo], index: Int) {
+        guard !stopped, !finished else { return }
+        guard index < candidates.count else {
+            probeWithURLSession()
+            return
+        }
+        let iface = candidates[index]
+        var capturedResponse: CurlHTTPResponse?
+        let task = CurlStreamTask(
+            url: requestURL,
+            headers: config.headers,
+            range: "0-0",
+            interfaceDevice: iface.device,
+            interfaceAddress: iface.primaryAddress,
+            ipv4Only: iface.ipv4Address != nil && iface.ipv6Address == nil,
+            originHost: config.url.host,
+            originScheme: config.url.scheme,
+            onHeaders: { resp in
+                capturedResponse = resp
+                return false // stop right after headers for probe
+            },
+            onData: { _ in false },
+            onComplete: { [weak self] _ in
+                guard let self else { return }
+                self.serialQueue.async {
+                    guard !self.stopped, !self.finished, self.mode == .probing else { return }
+                    self.curlProbeTask = nil
+                    if let resp = capturedResponse, (200...299).contains(resp.statusCode) {
+                        self.handleCurlProbe(resp)
+                    } else if index + 1 < candidates.count {
+                        self.probeWithCurl(candidates: candidates, index: index + 1)
+                    } else if let resp = capturedResponse {
+                        self.handleCurlProbe(resp)
+                    } else {
+                        self.probeWithURLSession()
+                    }
+                }
+            }
+        )
+        curlProbeTask = task
+        task.start()
+    }
+
+    private func handleCurlProbe(_ resp: CurlHTTPResponse) {
+        let status = resp.statusCode
+        guard (200...299).contains(status) else {
+            if !fallbackDone, !Self.isThrottle(status) {
+                fallbackDone = true
+                probeFromSingle = true
+                guard openFile(create: true, preallocate: nil) else { return }
+                mode = .single
+                launchSingle()
+            } else {
+                fail(HTTPStatusError(status: status))
+            }
+            return
+        }
+
+        var total: Int64 = -1
+        var ranges = false
+        if status == 206,
+           let cr = resp.header("content-range"),
+           let slash = cr.lastIndex(of: "/"),
+           let t = Int64(cr[cr.index(after: slash)...].trimmingCharacters(in: .whitespaces)) {
+            total = t
+            ranges = true
+        } else {
+            if resp.expectedContentLength > 0 {
+                total = resp.expectedContentLength
+            }
+            let accept = resp.header("accept-ranges")?.lowercased() ?? ""
+            ranges = total > 0 && accept.contains("bytes")
+        }
+        requestURL = resp.finalURL
+
+        let name = Self.fileName(fromContentDisposition: resp.header("content-disposition"))
+        let ctype = resp.header("content-type")?
+            .components(separatedBy: ";").first?
+            .trimmingCharacters(in: .whitespaces)
+        onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
+                             suggestedFileName: name, contentType: ctype, finalURL: resp.finalURL))
+
+        let desiredCount = useMultiNetwork ? max(config.segmentCount, currentInterfaces.count * 2) : config.segmentCount
+        let count = ranges ? max(1, min(desiredCount, Int(total / config.minSegmentSize))) : 1
+        if ranges && count > 1 {
+            segments = Self.makeSegments(total: total, count: count)
+            guard openFile(create: true, preallocate: total) else { return }
+            mode = .multi
+            launchPendingSegments()
+        } else {
+            singleTotal = total
+            guard openFile(create: true, preallocate: nil) else { return }
+            mode = .single
+            launchSingle()
+        }
     }
 
     private func handleProbe(_ http: HTTPURLResponse) {
@@ -439,6 +548,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             range: rangeStr,
             interfaceDevice: iface.device,
             interfaceAddress: iface.primaryAddress,
+            ipv4Only: iface.ipv4Address != nil && iface.ipv6Address == nil,
             originHost: config.url.host,
             originScheme: config.url.scheme,
             onHeaders: { [weak self] resp in
