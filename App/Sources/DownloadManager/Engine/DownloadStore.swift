@@ -42,6 +42,7 @@ final class DownloadStore: ObservableObject {
     private var samples: [UUID: (bytes: Int64, time: Date)] = [:]
     private var networkBytes: [UUID: [String: Int64]] = [:]
     private var networkSamples: [UUID: (bytes: [String: Int64], time: Date)] = [:]
+    private var cancellables = Set<AnyCancellable>()
     private var timer: Timer?
     private var saveWork: DispatchWorkItem?
     private var tickCount = 0
@@ -56,6 +57,22 @@ final class DownloadStore: ObservableObject {
         storeURL = supportDir.appendingPathComponent("downloads.json")
         load()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.tick() }
+        Publishers.CombineLatest4(
+            NetworkInterfaceMonitor.shared.$interfaces,
+            settings.$multiNetworkEnabled,
+            settings.$multiNetworkAutoSelect,
+            settings.$selectedNetworkIDs
+        )
+        .dropFirst()
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+            guard let self else { return }
+            let active = NetworkInterfaceMonitor.shared.activeInterfacesForDownload(settings: self.settings)
+            for dl in self.downloaders.values {
+                dl.updateInterfaces(active)
+            }
+        }
+        .store(in: &cancellables)
     }
 
     // MARK: - Sorgular
@@ -631,7 +648,8 @@ final class DownloadStore: ObservableObject {
                             let delta = max(0, total - (prev.bytes[name] ?? 0))
                             let inst = Double(delta) / dt
                             let old = speeds[name] ?? 0
-                            speeds[name] = old == 0 ? inst : old * 0.6 + inst * 0.4
+                            let next = old == 0 ? inst : old * 0.6 + inst * 0.4
+                            speeds[name] = (delta == 0 && next < 128) ? 0 : next
                         }
                         items[i].networkSpeeds = speeds
                     }

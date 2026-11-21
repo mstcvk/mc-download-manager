@@ -71,6 +71,8 @@ final class NetworkInterfaceMonitor: ObservableObject {
     private var cachedPortNames: (devices: String, names: [String: String])?
 
     private init() {
+        interfaces = discoverInterfaces(allowSubprocess: false)
+
         pathMonitor.pathUpdateHandler = { [weak self] _ in
             self?.refresh()
         }
@@ -122,7 +124,7 @@ final class NetworkInterfaceMonitor: ObservableObject {
 
     // MARK: - Discovery
 
-    private func discoverInterfaces() -> [NetworkInterfaceInfo] {
+    private func discoverInterfaces(allowSubprocess: Bool = true) -> [NetworkInterfaceInfo] {
         var ifaddrPtr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddrPtr) == 0, let first = ifaddrPtr else { return [] }
         defer { freeifaddrs(ifaddrPtr) }
@@ -183,7 +185,8 @@ final class NetworkInterfaceMonitor: ObservableObject {
         guard !devices.isEmpty else { return [] }
 
         let scInfo = systemConfigInfo()
-        let portNames = hardwarePortNames(for: devices)
+        let needsSubprocess = allowSubprocess && devices.contains { scInfo[$0] == nil }
+        let portNames = needsSubprocess ? hardwarePortNames(for: devices) : [:]
 
         var result: [NetworkInterfaceInfo] = []
         for dev in devices {

@@ -78,8 +78,9 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private var probeFromSingle = false
     private var lastReport = Date.distantPast
 
-    // MARK: - Multi-network state (used when config.interfaces.count >= 2)
-    private var useMultiNetwork: Bool { config.interfaces.count >= 2 }
+    // MARK: - Multi-network state (used when currentInterfaces is non-empty)
+    private var currentInterfaces: [NetworkInterfaceInfo]
+    private var useMultiNetwork: Bool { !currentInterfaces.isEmpty }
     private var curlTasks: [Int: (task: CurlStreamTask, index: Int, iface: NetworkInterfaceInfo)] = [:]
     private var disabledInterfaces: Set<String> = []
     private var interfaceErrorStreak: [String: Int] = [:]
@@ -89,6 +90,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     init(configuration: Configuration) {
         config = configuration
         requestURL = configuration.url
+        currentInterfaces = configuration.interfaces
         let counts = Dictionary(grouping: configuration.interfaces, by: \.displayName)
         duplicateDisplayNames = Set(counts.filter { $0.value.count > 1 }.keys)
         super.init()
@@ -99,7 +101,48 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     }
 
     private var healthyInterfaces: [NetworkInterfaceInfo] {
-        config.interfaces.filter { !disabledInterfaces.contains($0.device) }
+        currentInterfaces.filter { !disabledInterfaces.contains($0.device) }
+    }
+
+    /// Dynamically updates the active network interfaces during a running download.
+    /// Newly plugged-in interfaces immediately steal halves of the largest in-flight segments;
+    /// unplugged interfaces have their in-flight tasks cancelled and reassigned to remaining interfaces.
+    func updateInterfaces(_ newInterfaces: [NetworkInterfaceInfo]) {
+        serialQueue.async { [self] in
+            guard !stopped, !finished, currentInterfaces != newInterfaces else { return }
+            let oldDevices = Set(currentInterfaces.map(\.device))
+            let newDevices = Set(newInterfaces.map(\.device))
+            let added = newDevices.subtracting(oldDevices)
+            let removed = oldDevices.subtracting(newDevices)
+
+            currentInterfaces = newInterfaces
+            let counts = Dictionary(grouping: newInterfaces, by: \.displayName)
+            duplicateDisplayNames = Set(counts.filter { $0.value.count > 1 }.keys)
+
+            for dev in added {
+                disabledInterfaces.remove(dev)
+                interfaceErrorStreak[dev] = 0
+            }
+
+            guard mode == .multi else { return }
+
+            for (taskID, entry) in Array(curlTasks) where removed.contains(entry.iface.device) {
+                curlTasks.removeValue(forKey: taskID)
+                entry.task.cancel()
+                if entry.index < segments.count, !segments[entry.index].isDone, !pending.contains(entry.index) {
+                    pending.insert(entry.index, at: 0)
+                }
+            }
+
+            let targetLimit = max(config.segmentCount, currentInterfaces.count * 2)
+            if !added.isEmpty && activeTaskCount >= targetLimit {
+                activeLimit = min(16, activeTaskCount + added.count * 2)
+            } else {
+                activeLimit = max(activeLimit, targetLimit)
+            }
+
+            fillSlots()
+        }
     }
 
     // MARK: - Kontrol
@@ -217,7 +260,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
                              suggestedFileName: name, contentType: ctype, finalURL: http.url))
 
-        let desiredCount = useMultiNetwork ? max(config.segmentCount, config.interfaces.count * 2) : config.segmentCount
+        let desiredCount = useMultiNetwork ? max(config.segmentCount, currentInterfaces.count * 2) : config.segmentCount
         let count = ranges ? max(1, min(desiredCount, Int(total / config.minSegmentSize))) : 1
         if ranges && count > 1 {
             segments = Self.makeSegments(total: total, count: count)
@@ -267,7 +310,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     private func launchPendingSegments() {
         pending = segments.indices.filter { !segments[$0].isDone }
-        let baseLimit = useMultiNetwork ? max(config.segmentCount, config.interfaces.count * 2) : config.segmentCount
+        let baseLimit = useMultiNetwork ? max(config.segmentCount, currentInterfaces.count * 2) : config.segmentCount
         activeLimit = max(1, baseLimit)
         if pending.isEmpty { finishSuccess() } else { fillSlots() }
     }
@@ -497,7 +540,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         }
 
         if segments[i].isDone {
-            let maxLimit = max(config.segmentCount, config.interfaces.count * 2)
+            let maxLimit = max(config.segmentCount, currentInterfaces.count * 2, activeLimit)
             activeLimit = min(maxLimit, activeLimit + 1)
             fillSlots()
         } else {

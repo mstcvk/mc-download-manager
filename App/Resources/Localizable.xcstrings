@@ -3391,6 +3391,186 @@
           }
         }
       }
+    },
+    "Networks": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ağlar"
+          }
+        }
+      }
+    },
+    "Network": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ağ"
+          }
+        }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varsayılan"
+          }
+        }
+      }
+    },
+    "Auto": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik"
+          }
+        }
+      }
+    },
+    "Excluded": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hariç"
+          }
+        }
+      }
+    },
+    "Multi-Network Download Acceleration": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çoklu Ağ İndirme Hızlandırma"
+          }
+        }
+      }
+    },
+    "Combine multiple internet connections (Wi-Fi + Ethernet + USB Hotspot)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Birden fazla internet bağlantısını birleştir (Wi-Fi + Ethernet + USB Hotspot)"
+          }
+        }
+      }
+    },
+    "When two or more internet connections are active, MC Download Manager distributes download segments across each adapter and dynamically splits slow segments so faster connections finish them.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İki veya daha fazla internet bağlantısı aktif olduğunda, MC Download Manager indirme parçalarını her bir ağ kartına dağıtır ve yavaş kalan parçaları dinamik olarak ikiye bölerek hızlı bağlantıların tamamlamasını sağlar."
+          }
+        }
+      }
+    },
+    "Automatically use all active physical connections": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktif olan tüm fiziksel bağlantıları otomatik kullan"
+          }
+        }
+      }
+    },
+    "Combining %lld active networks": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld aktif ağ birleştiriliyor"
+          }
+        }
+      }
+    },
+    "Single network active (connect another network to combine speeds)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek ağ aktif (hızları birleştirmek için ikinci bir ağ bağlayın)"
+          }
+        }
+      }
+    },
+    "Multi-network disabled (using macOS default route)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çoklu ağ devre dışı (macOS varsayılan rotası kullanılıyor)"
+          }
+        }
+      }
+    },
+    "Two or more selected interfaces share the same local subnet (same router). Speed only increases if they use different internet uplinks (e.g. Wi-Fi + Mobile Hotspot or two ISPs).": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçili ağlardan ikisi veya daha fazlası aynı yerel alt ağı (aynı modemi) paylaşıyor. Hız artışı yalnızca farklı internet çıkışları (örn. Wi-Fi + Mobil Hotspot veya iki farklı İSS) kullanıldığında gerçekleşir."
+          }
+        }
+      }
+    },
+    "No active network interfaces detected.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktif ağ arayüzü bulunamadı."
+          }
+        }
+      }
+    },
+    "Detected Network Interfaces": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algılanan Ağ Arayüzleri"
+          }
+        }
+      }
+    },
+    "%lld networks": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ağ"
+          }
+        }
+      }
+    },
+    "USB / Hotspot": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "USB / Hotspot"
+          }
+        }
+      }
+    },
+    "Bridge": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Köprü"
+          }
+        }
+      }
     }
   }
 }
