@@ -80,7 +80,7 @@ final class NetworkInterfaceMonitor: ObservableObject {
         pathMonitor.start(queue: queue)
 
         let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now() + 3, repeating: 3)
+        t.schedule(deadline: .now() + 1.5, repeating: 1.5)
         t.setEventHandler { [weak self] in self?.refresh() }
         t.resume()
         timer = t

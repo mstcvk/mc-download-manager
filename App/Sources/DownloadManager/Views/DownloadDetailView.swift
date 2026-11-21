@@ -7,6 +7,7 @@ struct DownloadDetailView: View {
     let id: UUID
     @EnvironmentObject var store: DownloadStore
     @EnvironmentObject var settings: AppSettings
+    @ObservedObject private var networkMonitor = NetworkInterfaceMonitor.shared
     @State private var showDetails = true
 
     private var item: DownloadItem? { store.items.first { $0.id == id } }
@@ -210,7 +211,9 @@ struct DownloadDetailView: View {
     }
 
     private func networkBreakdown(_ item: DownloadItem) -> String {
-        item.networkSpeeds
+        let connectedNames = Set(networkMonitor.interfaces.flatMap { [$0.displayName, $0.shortLabel] })
+        return item.networkSpeeds
+            .filter { connectedNames.contains($0.key) || $0.value > 0 }
             .sorted { $0.key < $1.key }
             .map { "\($0.key): \(Fmt.speed($0.value))" }
             .joined(separator: "  ·  ")

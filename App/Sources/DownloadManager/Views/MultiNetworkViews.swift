@@ -56,6 +56,7 @@ struct NetworkStreamGroup: Identifiable {
     let id: String              // network displayName
     let name: String
     let color: Color
+    let isConnected: Bool
     let enabled: Bool
     let speed: Double
     let bytesDownloaded: Int64
@@ -69,22 +70,27 @@ struct NetworkStreamGroup: Identifiable {
 
 extension DownloadItem {
     func networkStreamGroups(settings: AppSettings) -> [NetworkStreamGroup] {
+        let detected = NetworkInterfaceMonitor.shared.interfaces
+        let connectedNames = Set(detected.flatMap { [$0.displayName, $0.shortLabel] })
+
         var names = Set<String>()
         for k in networkSpeeds.keys { names.insert(k) }
         for k in networkBytes.keys { names.insert(k) }
         for s in segments { if let n = s.interfaceName { names.insert(n) } }
         for n in disabledNetworks { names.insert(n) }
 
-        if names.isEmpty {
-            let active = NetworkInterfaceMonitor.shared.activeInterfacesForDownload(settings: settings)
-            for iface in active { names.insert(iface.displayName) }
-        }
+        let active = NetworkInterfaceMonitor.shared.activeInterfacesForDownload(settings: settings)
+        for iface in active { names.insert(iface.displayName) }
+
         if names.isEmpty {
             names.insert(String(localized: "Default"))
         }
 
-        // Order consistently: Wi-Fi first, then USB, then Ethernet, then alphabetical
+        // Order consistently: connected networks first, then Wi-Fi -> USB -> Ethernet -> alphabetical
         let sortedNames = names.sorted { a, b in
+            let ca = connectedNames.contains(a) ? 0 : 1
+            let cb = connectedNames.contains(b) ? 0 : 1
+            if ca != cb { return ca < cb }
             let pa = priority(of: a)
             let pb = priority(of: b)
             return pa != pb ? pa < pb : a < b
@@ -95,20 +101,25 @@ extension DownloadItem {
         })
 
         return sortedNames.map { name in
-            let segs = segments.enumerated().filter { ($0.element.interfaceName ?? String(localized: "Default")) == name }
+            let isDefault = name == String(localized: "Default")
+            let isConnected = connectedNames.contains(name) || (isDefault && detected.isEmpty)
+            let segs = segments.enumerated().filter {
+                !($0.element.isDone && !isConnected) && (($0.element.interfaceName ?? String(localized: "Default")) == name)
+            }
             let bytes = networkBytesFor(name: name)
-            let spd = disabledNetworks.contains(name) ? 0 : (networkSpeeds[name] ?? 0)
-            let enabled = !disabledNetworks.contains(name)
+            let enabled = isConnected && !disabledNetworks.contains(name)
+            let spd = enabled ? (networkSpeeds[name] ?? 0) : 0
             let share = totalNetBytes > 0 ? Double(bytes) / Double(totalNetBytes) : 0
             return NetworkStreamGroup(
                 id: name,
                 name: name,
                 color: NetworkPalette.color(for: name),
+                isConnected: isConnected,
                 enabled: enabled,
                 speed: spd,
                 bytesDownloaded: bytes,
                 share: share,
-                segments: segs.map { ($0.offset, $0.element) }
+                segments: isConnected ? segs.map { ($0.offset, $0.element) } : []
             )
         }
     }
@@ -273,15 +284,24 @@ struct NetworkMergeDiagramView: View {
                         .foregroundColor(.secondary)
                     ctx.draw(title, at: CGPoint(x: labelX, y: rowY - 6), anchor: .trailing)
 
-                    let spdStr = g.speed > 0 && !isPaused ? Fmt.speed(g.speed) : (g.enabled ? "0 KB/s" : String(localized: "OFF"))
+                    let spdStr: String
+                    if !g.isConnected {
+                        spdStr = String(localized: "OFFLINE")
+                    } else if g.speed > 0 && !isPaused {
+                        spdStr = Fmt.speed(g.speed)
+                    } else if g.enabled {
+                        spdStr = "0 KB/s"
+                    } else {
+                        spdStr = String(localized: "OFF")
+                    }
                     let spdText = Text(spdStr)
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(size: g.isConnected ? 10 : 8.5, weight: .bold, design: .monospaced))
                         .foregroundColor(active ? g.color : .secondary)
                     ctx.draw(spdText, at: CGPoint(x: labelX, y: rowY + 6), anchor: .trailing)
 
                     // Network Dot
                     let dotRect = CGRect(x: dotX - 3.5, y: rowY - 3.5, width: 7, height: 7)
-                    ctx.fill(Path(ellipseIn: dotRect), with: .color(g.enabled ? g.color : .gray.opacity(0.4)))
+                    ctx.fill(Path(ellipseIn: dotRect), with: .color(g.isConnected && g.enabled ? g.color : .gray.opacity(0.35)))
 
                     // Bezier curve from network dot to combine node
                     var curve = Path()
@@ -475,10 +495,12 @@ struct NetworkChunkGridView: View {
             HStack(spacing: 12) {
                 ForEach(groups) { g in
                     HStack(spacing: 5) {
-                        Circle().fill(g.color).frame(width: 7, height: 7)
+                        Circle()
+                            .fill(g.isConnected && g.enabled ? g.color : Color.gray.opacity(0.4))
+                            .frame(width: 7, height: 7)
                         Text(g.name)
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(g.enabled ? .primary : .secondary)
+                            .foregroundStyle(g.isConnected && g.enabled ? .primary : .secondary)
                     }
                 }
                 Spacer()
@@ -598,24 +620,39 @@ struct NetworkStreamTableView: View {
         return HStack(spacing: 10) {
             HStack(spacing: 7) {
                 Circle()
-                    .fill(g.enabled ? g.color : Color.gray.opacity(0.4))
+                    .fill(g.isConnected && g.enabled ? g.color : Color.gray.opacity(0.35))
                     .frame(width: 8, height: 8)
                     .shadow(color: active ? g.color.opacity(0.7) : .clear, radius: 4)
 
                 Toggle("", isOn: Binding(
-                    get: { g.enabled },
-                    set: { on in store.setDownloadNetwork(id: item.id, networkName: g.name, enabled: on) }
+                    get: { g.isConnected && g.enabled },
+                    set: { on in
+                        guard g.isConnected else { return }
+                        store.setDownloadNetwork(id: item.id, networkName: g.name, enabled: on)
+                    }
                 ))
                 .labelsHidden()
                 .toggleStyle(.checkbox)
-                .help(String(localized: "Enable or disable \(g.name) for this download"))
+                .disabled(!g.isConnected)
+                .help(g.isConnected
+                      ? String(localized: "Enable or disable \(g.name) for this download")
+                      : String(localized: "Not connected"))
 
                 Text(g.name)
                     .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(g.enabled ? .primary : .secondary)
+                    .foregroundStyle(g.isConnected && g.enabled ? .primary : .secondary)
                     .lineLimit(1)
 
-                if !g.segments.isEmpty {
+                if !g.isConnected {
+                    Text(String(localized: "Not connected"))
+                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1.5)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .fixedSize(horizontal: true, vertical: false)
+                } else if !g.segments.isEmpty {
                     let streamCount = g.segments.count
                     Button {
                         withAnimation(.easeInOut(duration: 0.15)) {
@@ -657,7 +694,7 @@ struct NetworkStreamTableView: View {
                 .monospacedDigit()
                 .frame(width: 48, alignment: .trailing)
 
-            Text(active ? Fmt.speed(g.speed) : (g.enabled ? "—" : String(localized: "Off")))
+            Text(active ? Fmt.speed(g.speed) : (!g.isConnected ? "—" : (g.enabled ? "—" : String(localized: "Off"))))
                 .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
                 .foregroundStyle(active ? g.color : .secondary)
                 .monospacedDigit()

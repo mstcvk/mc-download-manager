@@ -3951,6 +3951,26 @@
           }
         }
       }
+    },
+    "OFFLINE": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BAĞLI DEĞİL"
+          }
+        }
+      }
+    },
+    "Not connected": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlı değil"
+          }
+        }
+      }
     }
   }
 }
