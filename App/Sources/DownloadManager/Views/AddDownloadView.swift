@@ -12,6 +12,7 @@ struct AddDownloadView: View {
     @State private var streamsPerNetwork = 0    // 0 = Auto (settings.segmentCount), else 1, 2, 4, 8
     @State private var customDirectory: String = ""
     @State private var deselectedNetworkIDs: Set<String> = []
+    @State private var hasCustomNetworkSelection = false
 
     private let streamOptions = [0, 1, 2, 4, 8]
 
@@ -149,9 +150,9 @@ struct AddDownloadView: View {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Start") {
                     let dir = customDirectory.isEmpty ? nil : URL(fileURLWithPath: customDirectory)
-                    let allowed: Set<String>? = deselectedNetworkIDs.isEmpty
-                        ? nil
-                        : Set(selectedInterfaces.map(\.id))
+                    let allowed: Set<String>? = hasCustomNetworkSelection
+                        ? Set(selectedInterfaces.map(\.id))
+                        : nil
                     store.addURLs(
                         text,
                         kind: asVideo ? .video : .file,
@@ -170,6 +171,12 @@ struct AddDownloadView: View {
         .onAppear {
             customDirectory = settings.downloadDirectory
             monitor.refresh()
+            if !settings.multiNetworkAutoSelect, !settings.selectedNetworkIDs.isEmpty {
+                let nonSelected = candidateInterfaces.map(\.id).filter { !settings.selectedNetworkIDs.contains($0) }
+                if nonSelected.count < candidateInterfaces.count {
+                    deselectedNetworkIDs = Set(nonSelected)
+                }
+            }
             if let s = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
                s.hasPrefix("http"), !s.contains("\n") {
                 text = s
@@ -183,6 +190,7 @@ struct AddDownloadView: View {
         let ping = monitor.pingMs[iface.device]
 
         return Button {
+            hasCustomNetworkSelection = true
             if selected {
                 // Keep at least 1 network selected
                 if selectedInterfaces.count > 1 {
