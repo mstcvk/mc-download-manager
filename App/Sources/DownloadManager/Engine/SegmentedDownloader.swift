@@ -87,7 +87,9 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     // MARK: - Multi-network state (used when currentInterfaces is non-empty)
     private var currentInterfaces: [NetworkInterfaceInfo]
     private var forceSystemTransport = false
-    private var useMultiNetwork: Bool { !forceSystemTransport && !currentInterfaces.isEmpty }
+    private var useMultiNetwork: Bool {
+        !forceSystemTransport && !currentInterfaces.isEmpty && (mode != .multi || segmentTasks.isEmpty || expectedETag != nil)
+    }
     private var curlTasks: [Int: (task: CurlStreamTask, index: Int, iface: NetworkInterfaceInfo)] = [:]
     private var disabledInterfaces: Set<String> = []
     private var interfaceErrorStreak: [String: Int] = [:]
@@ -249,7 +251,6 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     }
 
     private func probeWithURLSession() {
-        forceSystemTransport = true
         let t = session.dataTask(with: makeRequest(range: "bytes=0-0"))
         probeTask = t
         t.resume()
@@ -258,6 +259,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private func probeWithCurl(candidates: [NetworkInterfaceInfo], index: Int) {
         guard !stopped, !finished else { return }
         guard index < candidates.count else {
+            forceSystemTransport = true
             probeWithURLSession()
             return
         }
@@ -291,6 +293,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                     } else if let resp = capturedResponse {
                         self.handleCurlProbe(resp)
                     } else {
+                        self.forceSystemTransport = true
                         self.probeWithURLSession()
                     }
                 }
@@ -458,7 +461,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     }
 
     private var activeTaskCount: Int {
-        useMultiNetwork ? curlTasks.count : segmentTasks.count
+        curlTasks.count + segmentTasks.count
     }
 
     /// Bekleyen parçaları, açık bağlantı sınırını aşmadan başlatır.
@@ -1106,7 +1109,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             let i = entry.index
             if let error, Self.isCancelled(error) { return }
             if segments[i].isDone {
-                activeLimit = min(config.segmentCount, activeLimit + 1)
+                activeLimit = min(streamCeiling, activeLimit + 1)
                 fillSlots()
             } else {
                 retrySegment(i, after: error)
