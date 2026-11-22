@@ -82,15 +82,15 @@ extension DownloadItem {
         let active = NetworkInterfaceMonitor.shared.activeInterfacesForDownload(settings: settings)
         for iface in active { names.insert(iface.displayName) }
 
+        let primaryName = NetworkInterfaceMonitor.shared.primaryInterfaceName
         if names.isEmpty {
-            names.insert(String(localized: "Default"))
+            names.insert(primaryName)
         }
 
         // Order consistently: connected networks first, then Wi-Fi -> USB -> Ethernet -> alphabetical
-        let defaultName = String(localized: "Default")
         let sortedNames = names.sorted { a, b in
-            let ca = (connectedNames.contains(a) || a == defaultName) ? 0 : 1
-            let cb = (connectedNames.contains(b) || b == defaultName) ? 0 : 1
+            let ca = (connectedNames.contains(a) || a == primaryName) ? 0 : 1
+            let cb = (connectedNames.contains(b) || b == primaryName) ? 0 : 1
             if ca != cb { return ca < cb }
             let pa = priority(of: a)
             let pb = priority(of: b)
@@ -102,10 +102,9 @@ extension DownloadItem {
         })
 
         return sortedNames.map { name in
-            let isDefault = name == defaultName
-            let isConnected = connectedNames.contains(name) || isDefault
+            let isConnected = connectedNames.contains(name) || (name == primaryName && detected.isEmpty)
             let segs = segments.enumerated().filter {
-                !($0.element.isDone && !isConnected) && (($0.element.interfaceName ?? String(localized: "Default")) == name)
+                !($0.element.isDone && !isConnected) && (($0.element.interfaceName ?? primaryName) == name)
             }
             let bytes = networkBytesFor(name: name)
             let enabled = isConnected && !disabledNetworks.contains(name)
@@ -127,8 +126,9 @@ extension DownloadItem {
 
     private func networkBytesFor(name: String) -> Int64 {
         if let b = networkBytes[name], b > 0 { return b }
+        let primaryName = NetworkInterfaceMonitor.shared.primaryInterfaceName
         let segSum = segments
-            .filter { ($0.interfaceName ?? String(localized: "Default")) == name }
+            .filter { ($0.interfaceName ?? primaryName) == name }
             .reduce(Int64(0)) { $0 + $1.received }
         return segSum
     }
@@ -477,7 +477,7 @@ struct NetworkChunkGridView: View {
     private var hoveredText: String {
         if let idx = hoveredIndex, idx < item.segments.count {
             let seg = item.segments[idx]
-            let net = seg.interfaceName ?? String(localized: "Default")
+            let net = seg.interfaceName ?? NetworkInterfaceMonitor.shared.primaryInterfaceName
             let chunkNum = idx + 1
             let recStr = Fmt.size(seg.received)
             let lenStr = Fmt.size(seg.length)
@@ -515,7 +515,7 @@ struct NetworkChunkGridView: View {
                 let cols = Array(repeating: GridItem(.flexible(minimum: 14), spacing: 4), count: min(max(item.segments.count, 8), 16))
                 LazyVGrid(columns: cols, spacing: 4) {
                     ForEach(Array(item.segments.enumerated()), id: \.offset) { idx, seg in
-                        let netName = seg.interfaceName ?? String(localized: "Default")
+                        let netName = seg.interfaceName ?? NetworkInterfaceMonitor.shared.primaryInterfaceName
                         let color = NetworkPalette.color(for: netName)
                         let ratio = seg.length > 0 ? min(1.0, max(0.0, Double(seg.received) / Double(seg.length))) : 0
                         let isActive = item.state == .downloading && !seg.isDone && seg.received > 0

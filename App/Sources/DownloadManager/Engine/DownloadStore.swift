@@ -718,7 +718,7 @@ final class DownloadStore: ObservableObject {
                 }
                 networkSamples[id] = (curNet, now)
             } else if items[i].speed > 0 {
-                let defKey = String(localized: "Default")
+                let defKey = NetworkInterfaceMonitor.shared.primaryInterfaceName
                 items[i].networkBytes = [defKey: bytes]
                 items[i].networkSpeeds = [defKey: items[i].speed]
                 items[i].speedHistory.append([defKey: items[i].speed])

@@ -161,6 +161,18 @@ final class NetworkInterfaceMonitor: ObservableObject {
         return max(1, Int(dtNs / 1_000_000))
     }
 
+    /// Display name of macOS's current primary network interface (e.g. "Wi-Fi", "Ethernet"),
+    /// falling back to the first detected interface or "Default" only when offline.
+    var primaryInterfaceName: String {
+        if let primaryDev = pathMonitor.currentPath.availableInterfaces.first?.name,
+           let match = interfaces.first(where: { $0.device == primaryDev }) {
+            return match.displayName
+        }
+        return interfaces.first(where: { $0.kind.isAutoSelectable })?.displayName
+            ?? interfaces.first?.displayName
+            ?? String(localized: "Default")
+    }
+
     /// Interfaces to use for a download based on current settings.
     /// Returns an empty array when multi-network is disabled, or in auto-select mode when fewer than
     /// 2 auto-selectable interfaces are available (falling back to the default OS route).

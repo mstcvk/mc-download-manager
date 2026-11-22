@@ -238,15 +238,16 @@ struct DownloadDetailView: View {
             case .paused: info = String(localized: "Paused")
             default: info = item.state.label
             }
-            return [ConnRow(id: 0, network: String(localized: "Default"), received: item.receivedBytes, start: 0, info: info)]
+            return [ConnRow(id: 0, network: NetworkInterfaceMonitor.shared.primaryInterfaceName, received: item.receivedBytes, start: 0, info: info)]
         }
+        let primaryName = NetworkInterfaceMonitor.shared.primaryInterfaceName
         return item.segments.enumerated().map { i, s in
             let info: String
             if s.isDone { info = String(localized: "Completed") }
             else if item.state == .downloading { info = s.received == 0 ? String(localized: "Sending GET…") : String(localized: "Receiving data…") }
             else if item.state == .paused { info = String(localized: "Paused") }
             else { info = item.state.label }
-            return ConnRow(id: i, network: s.interfaceName ?? String(localized: "Default"), received: s.received, start: s.start, info: info)
+            return ConnRow(id: i, network: s.interfaceName ?? primaryName, received: s.received, start: s.start, info: info)
         }
     }
 
