@@ -167,7 +167,8 @@ final class NetworkInterfaceMonitor: ObservableObject {
     func activeInterfacesForDownload(settings: AppSettings) -> [NetworkInterfaceInfo] {
         guard settings.multiNetworkEnabled else { return [] }
         if settings.multiNetworkAutoSelect {
-            return interfaces.filter { $0.kind.isAutoSelectable }
+            let auto = interfaces.filter { $0.kind.isAutoSelectable }
+            return auto.count >= 2 ? auto : []
         }
         let chosen = interfaces.filter { settings.selectedNetworkIDs.contains($0.id) }
         return chosen
