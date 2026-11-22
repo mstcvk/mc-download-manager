@@ -24,7 +24,7 @@ pick_identity() {
   [[ -n "$id" ]] && { echo "$id"; return; }
   id="$(printf '%s\n' "$ids" | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)"
   [[ -n "$id" ]] && { echo "$id"; return; }
-  echo "-"
+  printf '%s\n' "-"
 }
 IDENTITY="${CODESIGN_IDENTITY:-$(pick_identity)}"
 # Notarization profile (xcrun notarytool store-credentials). Defaults to the local profile when it exists.

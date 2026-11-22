@@ -27,6 +27,8 @@ struct SegmentInfo: Codable, Equatable {
     var start: Int64
     var end: Int64          // inclusive
     var received: Int64 = 0
+    var interfaceDevice: String? = nil
+    var interfaceName: String? = nil
 
     var length: Int64 { end - start + 1 }
     var isDone: Bool { received >= length }
@@ -42,6 +44,8 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var totalBytes: Int64 = -1
     var receivedBytes: Int64 = 0
     var supportsRanges = false
+    var eTag: String? = nil
+    var resolvedURL: URL? = nil
     var segments: [SegmentInfo] = []
     var headers: [String: String] = [:]
     var cookieFile: String? = nil
@@ -54,12 +58,19 @@ struct DownloadItem: Identifiable, Codable, Equatable {
 
     // Kalıcı olmayan alanlar
     var speed: Double = 0
+    var peakSpeed: Double = 0
+    var startedAt: Date? = nil
+    var networkSpeeds: [String: Double] = [:]   // interface displayName -> bytes/sec
+    var networkBytes: [String: Int64] = [:]     // interface displayName -> cumulative bytes
+    var speedHistory: [[String: Double]] = []   // rolling history (up to 60 samples) of per-network speeds
+    var disabledNetworks: Set<String> = []      // interface displayNames toggled off for this download
+    var allowedNetworkIDs: Set<String>? = nil   // optional per-download interface device filter from AddDownloadView
     var log: String = ""
     var stage: String = ""      // yt-dlp: current phase (downloading video/audio, merging…)
     var lastHTTPStatus: Int? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, url, fileName, directory, kind, state, totalBytes, receivedBytes, supportsRanges,
+        case id, url, fileName, directory, kind, state, totalBytes, receivedBytes, supportsRanges, eTag, resolvedURL,
              segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser
     }
 

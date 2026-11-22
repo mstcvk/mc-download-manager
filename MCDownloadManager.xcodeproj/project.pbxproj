@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		05443FB97D1F5CE38328B6C6 /* popup.html in Resources */ = {isa = PBXBuildFile; fileRef = 9A3FF3731D800D3C74501F5F /* popup.html */; };
 		07792A4DCF88CF4FB361FDAD /* DownloadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA232EBC90C29DD738F1E3E /* DownloadStore.swift */; };
+		11A2B3C4D5E6F708192A3B4C /* CurlBridge.c in Sources */ = {isa = PBXBuildFile; fileRef = 11A2B3C4D5E6F708192A3B4D /* CurlBridge.c */; };
+		22B3C4D5E6F708192A3B4C5D /* CurlHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B3C4D5E6F708192A3B4C5E /* CurlHTTPClient.swift */; };
+		33C4D5E6F708192A3B4C5D6E /* NetworkInterfaceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33C4D5E6F708192A3B4C5D6F /* NetworkInterfaceMonitor.swift */; };
+		44D5E6F708192A3B4C5D6E7F /* MultiNetworkViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D5E6F708192A3B4C5D6E80 /* MultiNetworkViews.swift */; };
 		151B1283A95CE6C3744174FF /* SegmentedDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA15CED2682BF59E18C3E09 /* SegmentedDownloader.swift */; };
 		194CA2E24934630B92414AA3 /* VideoDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B96EDDD486AAAA976EDFCDA /* VideoDownloader.swift */; };
 		1F58598C85BFBB7365AD168B /* popup.css in Resources */ = {isa = PBXBuildFile; fileRef = 59CEC5EB1D2E01C02E4ACE29 /* popup.css */; };
@@ -91,6 +95,11 @@
 
 /* Begin PBXFileReference section */
 		039A6DF1CFE03501E9B0A401 /* BrowserIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserIntegration.swift; sourceTree = "<group>"; };
+		11A2B3C4D5E6F708192A3B4D /* CurlBridge.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = CurlBridge.c; sourceTree = "<group>"; };
+		11A2B3C4D5E6F708192A3B4E /* CurlBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CurlBridge.h; sourceTree = "<group>"; };
+		22B3C4D5E6F708192A3B4C5E /* CurlHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurlHTTPClient.swift; sourceTree = "<group>"; };
+		33C4D5E6F708192A3B4C5D6F /* NetworkInterfaceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterfaceMonitor.swift; sourceTree = "<group>"; };
+		44D5E6F708192A3B4C5D6E80 /* MultiNetworkViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiNetworkViews.swift; sourceTree = "<group>"; };
 		054B3261F9ECB1DD226D703B /* MCDownloadManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MCDownloadManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		07140FDF4FFB084659EE61A2 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		095EA4F516946A62ACD35B00 /* SiteLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteLoginManager.swift; sourceTree = "<group>"; };
@@ -174,6 +183,7 @@
 				99D891C2A3BF44CE3FFD4A94 /* AppPresence.swift */,
 				039A6DF1CFE03501E9B0A401 /* BrowserIntegration.swift */,
 				6730053207B43287B7BC2434 /* NativeHostRegistry.swift */,
+				33C4D5E6F708192A3B4C5D6F /* NetworkInterfaceMonitor.swift */,
 				095EA4F516946A62ACD35B00 /* SiteLoginManager.swift */,
 				842F422B68150676664D0F41 /* ToolInstaller.swift */,
 				07140FDF4FFB084659EE61A2 /* UpdateChecker.swift */,
@@ -238,6 +248,7 @@
 				3C449D1F34DAA3E448231E2A /* DownloadDetailView.swift */,
 				D4315A5826C2F72F4247D931 /* ExtensionSetupWizard.swift */,
 				9DD9E371341F53169BBB893E /* Formatters.swift */,
+				44D5E6F708192A3B4C5D6E80 /* MultiNetworkViews.swift */,
 				8AC0FDA8C0D811D2E0C9C87E /* SettingsView.swift */,
 			);
 			path = Views;
@@ -274,6 +285,9 @@
 			isa = PBXGroup;
 			children = (
 				230F2774B9FFB8912976A4CD /* ClipboardWatcher.swift */,
+				11A2B3C4D5E6F708192A3B4D /* CurlBridge.c */,
+				11A2B3C4D5E6F708192A3B4E /* CurlBridge.h */,
+				22B3C4D5E6F708192A3B4C5E /* CurlHTTPClient.swift */,
 				FFA232EBC90C29DD738F1E3E /* DownloadStore.swift */,
 				CDA15CED2682BF59E18C3E09 /* SegmentedDownloader.swift */,
 				5B96EDDD486AAAA976EDFCDA /* VideoDownloader.swift */,
@@ -459,6 +473,8 @@
 				DD47AD949615D3F7357EA56A /* CaptureTypesView.swift in Sources */,
 				2F9C37CE4F71E1829D31F74A /* ClipboardWatcher.swift in Sources */,
 				52467EE3A9CCE7E5FA63A492 /* ContentView.swift in Sources */,
+				11A2B3C4D5E6F708192A3B4C /* CurlBridge.c in Sources */,
+				22B3C4D5E6F708192A3B4C5D /* CurlHTTPClient.swift in Sources */,
 				A88422645DD9A03CCC3056AB /* DownloadDetailView.swift in Sources */,
 				07792A4DCF88CF4FB361FDAD /* DownloadStore.swift in Sources */,
 				4D60CF95BED45A682E1D3DC8 /* ExtensionSetupWizard.swift in Sources */,
@@ -466,6 +482,8 @@
 				AC784500F340D94A3AC04673 /* LocalServer.swift in Sources */,
 				780C3DB40CB6A6C5BEB669F4 /* Models.swift in Sources */,
 				A499632D1294D66C49C7D9D6 /* NativeHostRegistry.swift in Sources */,
+				33C4D5E6F708192A3B4C5D6E /* NetworkInterfaceMonitor.swift in Sources */,
+				44D5E6F708192A3B4C5D6E7F /* MultiNetworkViews.swift in Sources */,
 				151B1283A95CE6C3744174FF /* SegmentedDownloader.swift in Sources */,
 				CCFECC40BA806C9CE8D283F7 /* ServerController.swift in Sources */,
 				4ABFFD403AF2BD3F56116B71 /* SettingsView.swift in Sources */,
@@ -584,9 +602,14 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lcurl",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.mesutcevik.mcdownloadmanager;
 				PRODUCT_NAME = "MC Download Manager";
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = App/Sources/DownloadManager/Engine/CurlBridge.h;
 			};
 			name = Debug;
 		};
@@ -602,9 +625,14 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lcurl",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.mesutcevik.mcdownloadmanager;
 				PRODUCT_NAME = "MC Download Manager";
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = App/Sources/DownloadManager/Engine/CurlBridge.h;
 			};
 			name = Release;
 		};

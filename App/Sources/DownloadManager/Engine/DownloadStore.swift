@@ -15,6 +15,8 @@ struct NewDownloadRequest {
     var extraHeaders: [String: String] = [:]
     var segments: Int? = nil
     var sourceBrowser: String? = nil
+    var customDirectory: URL? = nil
+    var allowedNetworkIDs: Set<String>? = nil
 
     init(url: URL) { self.url = url }
 }
@@ -40,6 +42,9 @@ final class DownloadStore: ObservableObject {
     /// Hosts the extensions must leave to the browser for a short while (a download handed back to the browser).
     private var browserBypass: [String: Date] = [:]
     private var samples: [UUID: (bytes: Int64, time: Date)] = [:]
+    private var networkBytes: [UUID: [String: Int64]] = [:]
+    private var networkSamples: [UUID: (bytes: [String: Int64], time: Date)] = [:]
+    private var cancellables = Set<AnyCancellable>()
     private var timer: Timer?
     private var saveWork: DispatchWorkItem?
     private var tickCount = 0
@@ -54,6 +59,53 @@ final class DownloadStore: ObservableObject {
         storeURL = supportDir.appendingPathComponent("downloads.json")
         load()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.tick() }
+        Publishers.CombineLatest4(
+            NetworkInterfaceMonitor.shared.$interfaces,
+            settings.$multiNetworkEnabled,
+            settings.$multiNetworkAutoSelect,
+            settings.$selectedNetworkIDs
+        )
+        .dropFirst()
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+            guard let self else { return }
+            for (id, dl) in self.downloaders {
+                if let item = self.items.first(where: { $0.id == id }) {
+                    dl.updateInterfaces(self.effectiveInterfaces(for: item))
+                }
+            }
+        }
+        .store(in: &cancellables)
+    }
+
+    /// Computes the active network interfaces for a specific download item,
+    /// honoring both per-download network selection and live per-network toggles in the detail view.
+    func effectiveInterfaces(for item: DownloadItem) -> [NetworkInterfaceInfo] {
+        guard settings.multiNetworkEnabled else { return [] }
+        var list = NetworkInterfaceMonitor.shared.activeInterfacesForDownload(settings: settings)
+        if let allowed = item.allowedNetworkIDs, !allowed.isEmpty {
+            let allDetected = NetworkInterfaceMonitor.shared.interfaces
+            list = allDetected.filter { allowed.contains($0.id) }
+        }
+        if !item.disabledNetworks.isEmpty {
+            list = list.filter { !item.disabledNetworks.contains($0.displayName) && !item.disabledNetworks.contains($0.shortLabel) }
+        }
+        return list
+    }
+
+    /// Toggles a network interface on or off live for an active or paused download.
+    func setDownloadNetwork(id: UUID, networkName: String, enabled: Bool) {
+        update(id) { item in
+            if enabled {
+                item.disabledNetworks.remove(networkName)
+            } else {
+                item.disabledNetworks.insert(networkName)
+                item.networkSpeeds[networkName] = 0
+            }
+        }
+        if let item = items.first(where: { $0.id == id }), let dl = downloaders[id] {
+            dl.updateInterfaces(effectiveInterfaces(for: item))
+        }
     }
 
     // MARK: - Sorgular
@@ -111,11 +163,12 @@ final class DownloadStore: ObservableObject {
         name = Self.sanitize(name)
 
         var item = DownloadItem(url: req.url, fileName: name,
-                                directory: URL(fileURLWithPath: settings.downloadDirectory),
+                                directory: req.customDirectory ?? URL(fileURLWithPath: settings.downloadDirectory),
                                 kind: req.kind)
         item.headers = headers
         item.requestedSegments = req.segments ?? 0
         item.sourceBrowser = req.sourceBrowser
+        item.allowedNetworkIDs = req.allowedNetworkIDs
         if req.kind == .video, let cookies = req.cookies, !cookies.isEmpty {
             item.cookieFile = writeCookieFile(cookies, id: item.id)
         }
@@ -127,13 +180,15 @@ final class DownloadStore: ObservableObject {
         return item
     }
 
-    func addURLs(_ text: String, kind: DownloadKind, segments: Int? = nil) {
+    func addURLs(_ text: String, kind: DownloadKind, segments: Int? = nil, directory: URL? = nil, allowedNetworkIDs: Set<String>? = nil) {
         for line in text.split(whereSeparator: \.isNewline) {
             let s = line.trimmingCharacters(in: .whitespaces)
             guard let url = URL(string: s), let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else { continue }
             var r = NewDownloadRequest(url: url)
             r.kind = kind
             r.segments = segments
+            r.customDirectory = directory
+            r.allowedNetworkIDs = allowedNetworkIDs
             add(r)
         }
     }
@@ -155,14 +210,22 @@ final class DownloadStore: ObservableObject {
     }
 
     private func startFile(_ item: DownloadItem) {
-        let resumable = item.supportsRanges && item.totalBytes > 0 && !item.segments.isEmpty
-            && FileManager.default.fileExists(atPath: item.partURL.path)
+        let resumable = SegmentedDownloader.canResume(
+            totalBytes: item.totalBytes,
+            supportsRanges: item.supportsRanges,
+            segments: item.segments,
+            eTag: item.eTag,
+            partURL: item.partURL
+        )
         var cfg = SegmentedDownloader.Configuration(
             url: item.url, headers: item.headers, partURL: item.partURL,
-            segmentCount: item.requestedSegments > 0 ? item.requestedSegments : settings.segmentCount)
+            segmentCount: item.requestedSegments > 0 ? item.requestedSegments : settings.segmentCount,
+            interfaces: effectiveInterfaces(for: item))
         if resumable {
             cfg.resumeSegments = item.segments
             cfg.resumeTotal = item.totalBytes
+            cfg.resumeETag = item.eTag
+            cfg.resumeURL = item.resolvedURL
         }
         let dl = SegmentedDownloader(configuration: cfg)
         let id = item.id
@@ -182,6 +245,12 @@ final class DownloadStore: ObservableObject {
                 }
             }
         }
+        dl.onNetworkBytes = { [weak self, weak dl] byIface in
+            DispatchQueue.main.async {
+                guard let self, self.downloaders[id] === dl else { return }
+                self.networkBytes[id] = byIface
+            }
+        }
         dl.onFinish = { [weak self, weak dl] result in
             DispatchQueue.main.async {
                 guard let self, self.downloaders[id] === dl else { return }
@@ -189,11 +258,15 @@ final class DownloadStore: ObservableObject {
             }
         }
         downloaders[id] = dl
+        networkBytes[id] = nil
+        networkSamples[id] = nil
         update(id) {
             $0.state = resumable ? .downloading : .probing
             $0.errorMessage = nil
             $0.speed = 0
-            if !resumable { $0.receivedBytes = 0; $0.segments = [] }
+            $0.networkSpeeds = [:]
+            if $0.startedAt == nil || !resumable { $0.startedAt = Date(); $0.peakSpeed = 0; $0.speedHistory = []; $0.networkBytes = [:] }
+            if !resumable { $0.receivedBytes = 0; $0.segments = []; $0.eTag = nil; $0.resolvedURL = nil }
         }
         dl.start()
     }
@@ -202,6 +275,14 @@ final class DownloadStore: ObservableObject {
         update(id) { item in
             item.totalBytes = p.totalBytes
             item.supportsRanges = p.supportsRanges
+            item.eTag = p.eTag
+            item.resolvedURL = p.finalURL
+            if let segs = p.segments {
+                item.segments = segs
+            }
+            if let recv = p.receivedBytes {
+                item.receivedBytes = recv
+            }
             item.state = .downloading
             if let n = p.suggestedFileName, !n.isEmpty {
                 item.fileName = Self.sanitize(n)
@@ -610,8 +691,45 @@ final class DownloadStore: ObservableObject {
                 }
             }
             samples[id] = (bytes, now)
+            if items[i].speed > items[i].peakSpeed {
+                items[i].peakSpeed = items[i].speed
+            }
+            if let curNet = networkBytes[id], !curNet.isEmpty {
+                items[i].networkBytes = curNet
+                if let prev = networkSamples[id] {
+                    let dt = now.timeIntervalSince(prev.time)
+                    if dt > 0 {
+                        var speeds: [String: Double] = [:]
+                        for (name, total) in curNet {
+                            let delta = max(0, total - (prev.bytes[name] ?? 0))
+                            let inst = Double(delta) / dt
+                            let old = items[i].networkSpeeds[name] ?? 0
+                            let next = old == 0 ? inst : old * 0.6 + inst * 0.4
+                            speeds[name] = (delta == 0 && next < 128) ? 0 : next
+                        }
+                        items[i].networkSpeeds = speeds
+                        items[i].speedHistory.append(speeds)
+                        if items[i].speedHistory.count > 60 {
+                            items[i].speedHistory.removeFirst(items[i].speedHistory.count - 60)
+                        }
+                    }
+                } else {
+                    items[i].networkSpeeds = items[i].networkSpeeds.filter { curNet[$0.key] != nil }
+                }
+                networkSamples[id] = (curNet, now)
+            } else if items[i].speed > 0 {
+                let defKey = NetworkInterfaceMonitor.shared.primaryInterfaceName
+                items[i].networkBytes = [defKey: bytes]
+                items[i].networkSpeeds = [defKey: items[i].speed]
+                items[i].speedHistory.append([defKey: items[i].speed])
+                if items[i].speedHistory.count > 60 {
+                    items[i].speedHistory.removeFirst(items[i].speedHistory.count - 60)
+                }
+            }
         }
         samples = samples.filter { activeIDs.contains($0.key) }
+        networkBytes = networkBytes.filter { activeIDs.contains($0.key) }
+        networkSamples = networkSamples.filter { activeIDs.contains($0.key) }
         DetailWindowManager.shared.refreshTitles(items: items)
         tickCount += 1
         if !activeIDs.isEmpty, tickCount % 10 == 0 { save() }   // parça durumu 5 sn'de bir diske

@@ -7,6 +7,7 @@ struct DownloadDetailView: View {
     let id: UUID
     @EnvironmentObject var store: DownloadStore
     @EnvironmentObject var settings: AppSettings
+    @ObservedObject private var networkMonitor = NetworkInterfaceMonitor.shared
     @State private var showDetails = true
 
     private var item: DownloadItem? { store.items.first { $0.id == id } }
@@ -21,7 +22,7 @@ struct DownloadDetailView: View {
                 }
             }
             .padding(16)
-            .frame(minWidth: 520, idealWidth: 560)
+            .frame(minWidth: 650, idealWidth: 680)
         } else {
             Text("This download was removed from the list.").padding()
         }
@@ -30,10 +31,18 @@ struct DownloadDetailView: View {
     // MARK: - İndirme sürerken
 
     private func activeView(_ item: DownloadItem) -> some View {
-        VStack(spacing: 14) {
+        let groups = item.networkStreamGroups(settings: settings)
+        return VStack(spacing: 12) {
+            if item.kind == .file {
+                MultiNetworkHeroView(item: item, groups: groups)
+            }
             infoGrid(item)
-            ProgressView(value: item.totalBytes > 0 ? item.progress : 0)
-                .progressViewStyle(.linear)
+            if item.kind == .file {
+                NetworkChunkGridView(item: item, groups: groups)
+            } else {
+                ProgressView(value: item.totalBytes > 0 ? item.progress : 0)
+                    .progressViewStyle(.linear)
+            }
             HStack(spacing: 12) {
                 Button(showDetails ? "<< Hide Details" : "Show Details >>") {
                     withAnimation { showDetails.toggle() }
@@ -62,11 +71,11 @@ struct DownloadDetailView: View {
                 }
             }
             if showDetails {
-                Divider()
                 if item.kind == .video {
+                    Divider()
                     logView(item)
                 } else {
-                    connections(item)
+                    NetworkStreamTableView(item: item, groups: groups)
                 }
             }
         }
@@ -95,6 +104,14 @@ struct DownloadDetailView: View {
             GridRow {
                 Text("Transfer rate").foregroundStyle(.secondary)
                 Text(item.state == .downloading ? Fmt.speed(item.speed) : "—")
+            }
+            if !item.networkSpeeds.isEmpty {
+                GridRow {
+                    Text("Networks").foregroundStyle(.secondary)
+                    Text(networkBreakdown(item))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
             GridRow {
                 Text("Time left").foregroundStyle(.secondary)
@@ -182,9 +199,10 @@ struct DownloadDetailView: View {
                        tint: item.state == .paused ? .secondary : .accentColor)
                 .frame(height: 12)
             Table(connectionRows(item)) {
-                TableColumn("N.") { Text("\($0.index)") }.width(36)
-                TableColumn("Downloaded") { Text(Fmt.size($0.received)) }.width(110)
-                TableColumn("Start") { Text(Fmt.size($0.start)) }.width(110)
+                TableColumn("N.") { Text("\($0.index)") }.width(32)
+                TableColumn("Network") { Text($0.network).lineLimit(1) }.width(min: 80, ideal: 110)
+                TableColumn("Downloaded") { Text(Fmt.size($0.received)) }.width(95)
+                TableColumn("Start") { Text(Fmt.size($0.start)) }.width(95)
                 TableColumn("Info") { Text($0.info) }
             }
             .font(.callout.monospacedDigit())
@@ -192,9 +210,19 @@ struct DownloadDetailView: View {
         }
     }
 
+    private func networkBreakdown(_ item: DownloadItem) -> String {
+        let connectedNames = Set(networkMonitor.interfaces.flatMap { [$0.displayName, $0.shortLabel] })
+        return item.networkSpeeds
+            .filter { connectedNames.contains($0.key) || $0.value > 0 }
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key): \(Fmt.speed($0.value))" }
+            .joined(separator: "  ·  ")
+    }
+
     private struct ConnRow: Identifiable {
         let id: Int
         var index: Int { id + 1 }
+        let network: String
         let received: Int64
         let start: Int64
         let info: String
@@ -210,15 +238,16 @@ struct DownloadDetailView: View {
             case .paused: info = String(localized: "Paused")
             default: info = item.state.label
             }
-            return [ConnRow(id: 0, received: item.receivedBytes, start: 0, info: info)]
+            return [ConnRow(id: 0, network: NetworkInterfaceMonitor.shared.primaryInterfaceName, received: item.receivedBytes, start: 0, info: info)]
         }
+        let primaryName = NetworkInterfaceMonitor.shared.primaryInterfaceName
         return item.segments.enumerated().map { i, s in
             let info: String
             if s.isDone { info = String(localized: "Completed") }
             else if item.state == .downloading { info = s.received == 0 ? String(localized: "Sending GET…") : String(localized: "Receiving data…") }
             else if item.state == .paused { info = String(localized: "Paused") }
             else { info = item.state.label }
-            return ConnRow(id: i, received: s.received, start: s.start, info: info)
+            return ConnRow(id: i, network: s.interfaceName ?? primaryName, received: s.received, start: s.start, info: info)
         }
     }
 
@@ -324,10 +353,10 @@ final class DetailWindowManager {
     private let model = DownloadPanelModel()
     private var compact = false
 
-    static let fullHeight: CGFloat = 540
-    static let compactHeight: CGFloat = 290
+    static let fullHeight: CGFloat = 650
+    static let compactHeight: CGFloat = 390
     static let completedHeight: CGFloat = 250
-    static let detailWidth: CGFloat = 560
+    static let detailWidth: CGFloat = 680
     static let listWidth: CGFloat = 230
 
     private var showsList: Bool { model.tracked.count > 1 }

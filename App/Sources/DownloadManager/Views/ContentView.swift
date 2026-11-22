@@ -17,6 +17,7 @@ struct ContentView: View {
     @EnvironmentObject var store: DownloadStore
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var server: ServerController
+    @ObservedObject private var networkMonitor = NetworkInterfaceMonitor.shared
     @State private var showAdd = false
     @State private var sidebar: SidebarItem? = .all
     @State private var selection = Set<UUID>()
@@ -264,6 +265,12 @@ struct ContentView: View {
                 Text(server.statusText).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            let activeNets = networkMonitor.activeInterfacesForDownload(settings: settings)
+            if activeNets.count >= 2 {
+                Label("\(activeNets.count) networks", systemImage: "bolt.horizontal.fill")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.green)
+                    .help(activeNets.map(\.shortLabel).joined(separator: " + "))
+            }
             Label("\(store.items.filter { !$0.isFinished }.count)", systemImage: "list.bullet")
                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 .help("Unfinished downloads")
@@ -353,7 +360,8 @@ struct SegmentBar: View {
                 for s in segments where s.received > 0 {
                     let x = CGFloat(s.start) / CGFloat(total) * size.width
                     let w = CGFloat(s.received) / CGFloat(total) * size.width
-                    ctx.fill(Path(CGRect(x: x, y: 0, width: max(w, 1), height: size.height)), with: .color(tint))
+                    let segColor = s.interfaceName.map { NetworkPalette.color(for: $0) } ?? tint
+                    ctx.fill(Path(CGRect(x: x, y: 0, width: max(w, 1), height: size.height)), with: .color(segColor))
                 }
                 for s in segments.dropFirst() {
                     let x = CGFloat(s.start) / CGFloat(total) * size.width
