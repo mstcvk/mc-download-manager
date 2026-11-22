@@ -64,6 +64,8 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private var requestURL: URL
     private var expectedETag: String?
     private var expectedTotal: Int64 = -1
+    private var resumedFromSavedRedirect = false
+    private var reprobingAfterExpiredResume = false
     private var segments: [SegmentInfo] = []
     private var segmentTasks: [Int: (task: URLSessionDataTask, index: Int, requestedStart: Int64, requestedEnd: Int64)] = [:]
     private var retries: [Int: Int] = [:]
@@ -243,6 +245,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 expectedETag = resumeETag
                 if let resumeURL = config.resumeURL {
                     requestURL = resumeURL
+                    resumedFromSavedRedirect = resumeURL != config.url
                 }
                 guard openFile(create: false, preallocate: nil) else { return }
                 mode = .multi
@@ -413,16 +416,29 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
                              suggestedFileName: name, contentType: ctype, finalURL: resp.finalURL, eTag: strongETag))
 
+        let isExpiredResumeReprobe = reprobingAfterExpiredResume
+        reprobingAfterExpiredResume = false
+
         let count = ranges ? max(1, min(streamCeiling, Int(total / config.minSegmentSize))) : 1
         let canValidateMulti = !useMultiNetwork || strongETag != nil
         if ranges && count > 1 && canValidateMulti {
-            expectedETag = strongETag
-            expectedTotal = total
-            segments = Self.makeSegments(total: total, count: count)
-            guard openFile(create: true, preallocate: total) else { return }
-            mode = .multi
-            launchPendingSegments()
+            if isExpiredResumeReprobe,
+               let strongETag, strongETag == expectedETag,
+               total == expectedTotal, !segments.isEmpty {
+                guard openFile(create: false, preallocate: nil) else { return }
+                mode = .multi
+                launchPendingSegments()
+            } else {
+                expectedETag = strongETag
+                expectedTotal = total
+                segments = Self.makeSegments(total: total, count: count)
+                guard openFile(create: true, preallocate: total) else { return }
+                mode = .multi
+                launchPendingSegments()
+            }
         } else {
+            segments = []
+            pending = []
             singleTotal = total
             guard openFile(create: true, preallocate: nil) else { return }
             mode = .single
@@ -436,6 +452,9 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             // Some servers (signed / one-shot links, anti download-manager checks) refuse a Range request
             // but serve the plain GET a browser would send: try that once before giving up.
             if !fallbackDone, !Self.isThrottle(status) {
+                reprobingAfterExpiredResume = false
+                segments = []
+                pending = []
                 fallbackDone = true
                 probeFromSingle = true
                 guard openFile(create: true, preallocate: nil) else { return }
@@ -474,16 +493,29 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
                              suggestedFileName: name, contentType: ctype, finalURL: http.url, eTag: strongETag))
 
+        let isExpiredResumeReprobe = reprobingAfterExpiredResume
+        reprobingAfterExpiredResume = false
+
         let count = ranges ? max(1, min(streamCeiling, Int(total / config.minSegmentSize))) : 1
         let canValidateMulti = !useMultiNetwork || strongETag != nil
         if ranges && count > 1 && canValidateMulti {
-            expectedETag = strongETag
-            expectedTotal = total
-            segments = Self.makeSegments(total: total, count: count)
-            guard openFile(create: true, preallocate: total) else { return }
-            mode = .multi
-            launchPendingSegments()
+            if isExpiredResumeReprobe,
+               let strongETag, strongETag == expectedETag,
+               total == expectedTotal, !segments.isEmpty {
+                guard openFile(create: false, preallocate: nil) else { return }
+                mode = .multi
+                launchPendingSegments()
+            } else {
+                expectedETag = strongETag
+                expectedTotal = total
+                segments = Self.makeSegments(total: total, count: count)
+                guard openFile(create: true, preallocate: total) else { return }
+                mode = .multi
+                launchPendingSegments()
+            }
         } else {
+            segments = []
+            pending = []
             singleTotal = total
             guard openFile(create: true, preallocate: nil) else { return }
             mode = .single
@@ -743,6 +775,9 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             // 401/403/410 on a secondary interface often means the server locked the URL to one public IP.
             // Disable this interface for the current download and let healthy interfaces finish the segment.
             curlTasks.removeValue(forKey: taskID)
+            if reprobeOriginalURLForExpiredResume() {
+                return false
+            }
             if healthyInterfaces.contains(where: { $0.device != iface.device }) {
                 disableInterface(iface.device)
                 if i < segments.count, !segments[i].isDone, !pending.contains(i) {
@@ -992,10 +1027,26 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         return true
     }
 
+    private func reprobeOriginalURLForExpiredResume() -> Bool {
+        guard resumedFromSavedRedirect, !reprobingAfterExpiredResume else { return false }
+        resumedFromSavedRedirect = false
+        reprobingAfterExpiredResume = true
+        cancelAllCurlTasks()
+        let old = segmentTasks
+        segmentTasks = [:]
+        old.values.forEach { $0.task.cancel() }
+        closeFile()
+        requestURL = config.url
+        probe()
+        return true
+    }
+
     /// Sunucu Range'i yok sayıp 200 döndürdüyse ya da parça isteklerini reddettiyse tek akışa geç.
     private func fallbackToSingle() {
         guard !fallbackDone else { return }
         fallbackDone = true
+        resumedFromSavedRedirect = false
+        reprobingAfterExpiredResume = false
         cancelAllCurlTasks()
         let old = segmentTasks
         segmentTasks = [:]
@@ -1004,6 +1055,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         pending = []
         closeFile()
         guard openFile(create: true, preallocate: nil) else { return }
+        requestURL = config.url
         mode = .single
         launchSingle()
     }
@@ -1115,6 +1167,9 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             default:
                 // 401/403/410…: the server accepted the probe but refuses parallel connections — continue on one.
                 completionHandler(.cancel)
+                if reprobeOriginalURLForExpiredResume() {
+                    return
+                }
                 if fallbackDone { fail(HTTPStatusError(status: http.statusCode)) } else { fallbackToSingle() }
             }
             return
