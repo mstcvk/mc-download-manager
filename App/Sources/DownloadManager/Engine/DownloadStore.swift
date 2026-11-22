@@ -699,11 +699,11 @@ final class DownloadStore: ObservableObject {
                 if let prev = networkSamples[id] {
                     let dt = now.timeIntervalSince(prev.time)
                     if dt > 0 {
-                        var speeds = items[i].networkSpeeds
+                        var speeds: [String: Double] = [:]
                         for (name, total) in curNet {
                             let delta = max(0, total - (prev.bytes[name] ?? 0))
                             let inst = Double(delta) / dt
-                            let old = speeds[name] ?? 0
+                            let old = items[i].networkSpeeds[name] ?? 0
                             let next = old == 0 ? inst : old * 0.6 + inst * 0.4
                             speeds[name] = (delta == 0 && next < 128) ? 0 : next
                         }
@@ -713,6 +713,8 @@ final class DownloadStore: ObservableObject {
                             items[i].speedHistory.removeFirst(items[i].speedHistory.count - 60)
                         }
                     }
+                } else {
+                    items[i].networkSpeeds = items[i].networkSpeeds.filter { curNet[$0.key] != nil }
                 }
                 networkSamples[id] = (curNet, now)
             } else if items[i].speed > 0 {
