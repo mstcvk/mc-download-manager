@@ -179,13 +179,28 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     }
 
     private func rebalanceForAddedInterfaces(_ added: Set<String>) {
-        guard useMultiNetwork, !added.isEmpty, pending.isEmpty else { return }
-        let effectiveLimit = min(activeLimit, streamCeiling)
-        guard activeTaskCount >= effectiveLimit else { return }
-
+        guard useMultiNetwork, !added.isEmpty else { return }
         let healthy = healthyInterfaces
         let addedHealthyCount = healthy.filter { added.contains($0.device) }.count
-        guard addedHealthyCount > 0, healthy.count > 1 else { return }
+        guard addedHealthyCount > 0 else { return }
+
+        // If the download started on URLSession (default route) and multi-network adapters just became active,
+        // migrate unfinished URLSession segments onto the bound curl adapters (preserving written bytes).
+        if !segmentTasks.isEmpty {
+            for (taskID, entry) in Array(segmentTasks) {
+                guard entry.index < segments.count, !segments[entry.index].isDone else { continue }
+                segmentTasks.removeValue(forKey: taskID)
+                entry.task.cancel()
+                if !pending.contains(entry.index) {
+                    pending.insert(entry.index, at: 0)
+                }
+            }
+            return
+        }
+
+        guard pending.isEmpty else { return }
+        let effectiveLimit = min(activeLimit, streamCeiling)
+        guard activeTaskCount >= effectiveLimit, healthy.count > 1 else { return }
 
         let targetPerAdapter = max(1, effectiveLimit / healthy.count)
         var slotsToReassign = addedHealthyCount * targetPerAdapter

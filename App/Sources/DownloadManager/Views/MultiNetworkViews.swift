@@ -87,9 +87,10 @@ extension DownloadItem {
         }
 
         // Order consistently: connected networks first, then Wi-Fi -> USB -> Ethernet -> alphabetical
+        let defaultName = String(localized: "Default")
         let sortedNames = names.sorted { a, b in
-            let ca = connectedNames.contains(a) ? 0 : 1
-            let cb = connectedNames.contains(b) ? 0 : 1
+            let ca = (connectedNames.contains(a) || a == defaultName) ? 0 : 1
+            let cb = (connectedNames.contains(b) || b == defaultName) ? 0 : 1
             if ca != cb { return ca < cb }
             let pa = priority(of: a)
             let pb = priority(of: b)
@@ -101,8 +102,8 @@ extension DownloadItem {
         })
 
         return sortedNames.map { name in
-            let isDefault = name == String(localized: "Default")
-            let isConnected = connectedNames.contains(name) || (isDefault && detected.isEmpty)
+            let isDefault = name == defaultName
+            let isConnected = connectedNames.contains(name) || isDefault
             let segs = segments.enumerated().filter {
                 !($0.element.isDone && !isConnected) && (($0.element.interfaceName ?? String(localized: "Default")) == name)
             }
