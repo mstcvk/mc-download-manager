@@ -149,13 +149,15 @@ struct AddDownloadView: View {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Start") {
                     let dir = customDirectory.isEmpty ? nil : URL(fileURLWithPath: customDirectory)
-                    let allowed = Set(selectedInterfaces.map(\.id))
+                    let allowed: Set<String>? = deselectedNetworkIDs.isEmpty
+                        ? nil
+                        : Set(selectedInterfaces.map(\.id))
                     store.addURLs(
                         text,
                         kind: asVideo ? .video : .file,
                         segments: totalStreams,
                         directory: dir,
-                        allowedNetworkIDs: allowed.isEmpty ? nil : allowed
+                        allowedNetworkIDs: allowed?.isEmpty == false ? allowed : nil
                     )
                     dismiss()
                 }

@@ -17,6 +17,7 @@ int mc_curl_setopt_range(void *handle, const char *range);
 int mc_curl_setopt_accept_encoding(void *handle, const char *enc);
 int mc_curl_setopt_httpheader(void *handle, void *slist);
 int mc_curl_setopt_followlocation(void *handle, long enable);
+int mc_curl_setopt_protocols_http_https(void *handle);
 int mc_curl_setopt_nosignal(void *handle, long enable);
 int mc_curl_setopt_ipresolve(void *handle, long mode);
 int mc_curl_setopt_connecttimeout(void *handle, long seconds);

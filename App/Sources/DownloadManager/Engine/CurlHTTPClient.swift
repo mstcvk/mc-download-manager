@@ -28,7 +28,15 @@ struct CurlError: LocalizedError {
 final class CurlStreamTask {
     private static let workerQueue = DispatchQueue(label: "dm.curl-worker", qos: .userInitiated, attributes: .concurrent)
     private static let credentialHeaders: Set<String> = ["cookie", "authorization", "proxy-authorization"]
+    private static let allowedSchemes: Set<String> = ["http", "https"]
     private static let maxRedirects = 5
+
+    private static func isAllowedHTTPURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), allowedSchemes.contains(scheme) else {
+            return false
+        }
+        return url.host?.isEmpty == false
+    }
 
     let id: Int
     private let initialURL: URL
@@ -125,6 +133,10 @@ final class CurlStreamTask {
 
     private func run() {
         var currentURL = initialURL
+        guard Self.isAllowedHTTPURL(currentURL) else {
+            onComplete(.failure(DownloadFailure(message: "Unsupported URL scheme")))
+            return
+        }
         var redirectsLeft = Self.maxRedirects
         var useAddressFallback = false
 
@@ -156,6 +168,13 @@ final class CurlStreamTask {
             _ = currentURL.absoluteString.withCString { mc_curl_setopt_url(handle, $0) }
             _ = mc_curl_setopt_httpheader(handle, slist)
             _ = mc_curl_setopt_followlocation(handle, 0) // manual redirects for same-origin credential safety
+            if mc_curl_setopt_protocols_http_https(handle) != mc_curl_code_ok() {
+                mc_curl_slist_free_all(slist)
+                mc_curl_easy_cleanup(handle)
+                unmanaged.release()
+                onComplete(.failure(DownloadFailure(message: "Could not configure libcurl protocol allowlist")))
+                return
+            }
             _ = mc_curl_setopt_nosignal(handle, 1)
             if ipv4Only {
                 _ = mc_curl_setopt_ipresolve(handle, 1) // CURL_IPRESOLVE_V4
@@ -188,8 +207,16 @@ final class CurlStreamTask {
             unmanaged.release()
 
             // If we got a 3xx redirect, follow it manually.
-            if let loc = ctx.redirectLocation, redirectsLeft > 0,
-               let nextURL = URL(string: loc, relativeTo: currentURL)?.absoluteURL {
+            if let loc = ctx.redirectLocation {
+                guard redirectsLeft > 0 else {
+                    onComplete(.failure(DownloadFailure(message: "Too many redirects")))
+                    return
+                }
+                guard let nextURL = URL(string: loc, relativeTo: currentURL)?.absoluteURL,
+                      Self.isAllowedHTTPURL(nextURL) else {
+                    onComplete(.failure(DownloadFailure(message: "Blocked redirect to unsupported URL scheme")))
+                    return
+                }
                 currentURL = nextURL
                 redirectsLeft -= 1
                 continue

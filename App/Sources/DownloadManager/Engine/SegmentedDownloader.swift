@@ -59,16 +59,20 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     private var mode: Mode = .idle
     private var requestURL: URL
+    private var expectedETag: String?
+    private var expectedTotal: Int64 = -1
     private var segments: [SegmentInfo] = []
-    private var segmentTasks: [Int: (task: URLSessionDataTask, index: Int)] = [:]
+    private var segmentTasks: [Int: (task: URLSessionDataTask, index: Int, requestedStart: Int64, requestedEnd: Int64)] = [:]
     private var retries: [Int: Int] = [:]
     private var pending: [Int] = []          // başlatılmayı bekleyen parça indeksleri
+    private var streamCeiling: Int { max(1, config.segmentCount) }
     private var activeLimit = 1              // aynı anda açık bağlantı üst sınırı (429/503'te düşer)
     private var throttledUntil = Date.distantPast
     private static let maxAttempts = 12
     private var probeTask: URLSessionDataTask?
     private var curlProbeTask: CurlStreamTask?
     private var singleTask: URLSessionDataTask?
+    private var curlSingleTask: CurlStreamTask?
     private var singleReceived: Int64 = 0
     private var singleTotal: Int64 = -1
     private var fileHandle: FileHandle?
@@ -81,7 +85,8 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     // MARK: - Multi-network state (used when currentInterfaces is non-empty)
     private var currentInterfaces: [NetworkInterfaceInfo]
-    private var useMultiNetwork: Bool { !currentInterfaces.isEmpty }
+    private var forceSystemTransport = false
+    private var useMultiNetwork: Bool { !forceSystemTransport && !currentInterfaces.isEmpty }
     private var curlTasks: [Int: (task: CurlStreamTask, index: Int, iface: NetworkInterfaceInfo)] = [:]
     private var disabledInterfaces: Set<String> = []
     private var interfaceErrorStreak: [String: Int] = [:]
@@ -135,11 +140,10 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 }
             }
 
-            let targetLimit = max(config.segmentCount, currentInterfaces.count * 2)
-            if !added.isEmpty && activeTaskCount >= targetLimit {
-                activeLimit = min(16, activeTaskCount + added.count * 2)
+            if throttledUntil.timeIntervalSinceNow > 0 {
+                activeLimit = min(streamCeiling, max(1, activeLimit))
             } else {
-                activeLimit = max(activeLimit, targetLimit)
+                activeLimit = streamCeiling
             }
 
             fillSlots()
@@ -155,6 +159,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 && FileManager.default.fileExists(atPath: config.partURL.path)
             if canResume {
                 segments = config.resumeSegments
+                expectedTotal = config.resumeTotal
                 guard openFile(create: false, preallocate: nil) else { return }
                 mode = .multi
                 launchPendingSegments()
@@ -180,6 +185,8 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private func cancelAllCurlTasks() {
         curlProbeTask?.cancel()
         curlProbeTask = nil
+        curlSingleTask?.cancel()
+        curlSingleTask = nil
         let tasks = curlTasks
         curlTasks = [:]
         tasks.values.forEach { $0.task.cancel() }
@@ -209,7 +216,12 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             r.setValue(v, forHTTPHeaderField: k)
         }
         r.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-        if let range { r.setValue(range, forHTTPHeaderField: "Range") }
+        if let range {
+            r.setValue(range, forHTTPHeaderField: "Range")
+            if let expectedETag {
+                r.setValue(expectedETag, forHTTPHeaderField: "If-Range")
+            }
+        }
         return r
     }
 
@@ -224,6 +236,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     }
 
     private func probeWithURLSession() {
+        forceSystemTransport = true
         let t = session.dataTask(with: makeRequest(range: "bytes=0-0"))
         probeTask = t
         t.resume()
@@ -251,13 +264,15 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 return false // stop right after headers for probe
             },
             onData: { _ in false },
-            onComplete: { [weak self] _ in
+            onComplete: { [weak self] result in
                 guard let self else { return }
                 self.serialQueue.async {
                     guard !self.stopped, !self.finished, self.mode == .probing else { return }
                     self.curlProbeTask = nil
                     if let resp = capturedResponse, (200...299).contains(resp.statusCode) {
                         self.handleCurlProbe(resp)
+                    } else if case .failure(let error as DownloadFailure) = result {
+                        self.fail(error)
                     } else if index + 1 < candidates.count {
                         self.probeWithCurl(candidates: candidates, index: index + 1)
                     } else if let resp = capturedResponse {
@@ -311,9 +326,12 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
                              suggestedFileName: name, contentType: ctype, finalURL: resp.finalURL))
 
-        let desiredCount = useMultiNetwork ? max(config.segmentCount, currentInterfaces.count * 2) : config.segmentCount
-        let count = ranges ? max(1, min(desiredCount, Int(total / config.minSegmentSize))) : 1
-        if ranges && count > 1 {
+        let count = ranges ? max(1, min(streamCeiling, Int(total / config.minSegmentSize))) : 1
+        let strongETag = Self.strongETag(from: resp.header("etag"))
+        let canValidateMulti = !useMultiNetwork || strongETag != nil
+        if ranges && count > 1 && canValidateMulti {
+            expectedETag = strongETag
+            expectedTotal = total
             segments = Self.makeSegments(total: total, count: count)
             guard openFile(create: true, preallocate: total) else { return }
             mode = .multi
@@ -369,9 +387,12 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
                              suggestedFileName: name, contentType: ctype, finalURL: http.url))
 
-        let desiredCount = useMultiNetwork ? max(config.segmentCount, currentInterfaces.count * 2) : config.segmentCount
-        let count = ranges ? max(1, min(desiredCount, Int(total / config.minSegmentSize))) : 1
-        if ranges && count > 1 {
+        let count = ranges ? max(1, min(streamCeiling, Int(total / config.minSegmentSize))) : 1
+        let strongETag = Self.strongETag(from: http.value(forHTTPHeaderField: "ETag"))
+        let canValidateMulti = !useMultiNetwork || strongETag != nil
+        if ranges && count > 1 && canValidateMulti {
+            expectedETag = strongETag
+            expectedTotal = total
             segments = Self.makeSegments(total: total, count: count)
             guard openFile(create: true, preallocate: total) else { return }
             mode = .multi
@@ -419,8 +440,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     private func launchPendingSegments() {
         pending = segments.indices.filter { !segments[$0].isDone }
-        let baseLimit = useMultiNetwork ? max(config.segmentCount, currentInterfaces.count * 2) : config.segmentCount
-        activeLimit = max(1, baseLimit)
+        activeLimit = streamCeiling
         if pending.isEmpty { finishSuccess() } else { fillSlots() }
     }
 
@@ -440,7 +460,12 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             }
             return
         }
-        while activeTaskCount < activeLimit, !pending.isEmpty {
+        if useMultiNetwork && !pending.isEmpty && healthyInterfaces.isEmpty {
+            fallbackToSingle()
+            return
+        }
+        let effectiveLimit = min(activeLimit, streamCeiling)
+        while !stopped, !finished, mode == .multi, activeTaskCount < effectiveLimit, !pending.isEmpty {
             let i = pending.removeFirst()
             if segments[i].isDone { continue }
             if useMultiNetwork {
@@ -448,10 +473,11 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             } else {
                 launchSegment(i)
             }
+            if mode != .multi || stopped || finished { return }
         }
         // Work-stealing: if a fast interface finished early and slots are free, split the largest active segment.
         if useMultiNetwork && pending.isEmpty && !healthyInterfaces.isEmpty {
-            while activeTaskCount < activeLimit, let newIdx = splitLargestActiveSegment() {
+            while activeTaskCount < effectiveLimit, let newIdx = splitLargestActiveSegment() {
                 launchCurlSegment(newIdx)
             }
         }
@@ -524,8 +550,10 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     private func launchSegment(_ i: Int) {
         let seg = segments[i]
-        let t = session.dataTask(with: makeRequest(range: "bytes=\(seg.start + seg.received)-\(seg.end)"))
-        segmentTasks[t.taskIdentifier] = (t, i)
+        let requestedStart = seg.start + seg.received
+        let requestedEnd = seg.end
+        let t = session.dataTask(with: makeRequest(range: "bytes=\(requestedStart)-\(requestedEnd)"))
+        segmentTasks[t.taskIdentifier] = (t, i, requestedStart, requestedEnd)
         t.resume()
     }
 
@@ -536,15 +564,22 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             return
         }
         let seg = segments[i]
-        let rangeStr = "\(seg.start + seg.received)-\(seg.end)"
+        let requestedStart = seg.start + seg.received
+        let requestedEnd = seg.end
+        let rangeStr = "\(requestedStart)-\(requestedEnd)"
         let ifaceLabel = label(for: iface)
         segments[i].interfaceDevice = iface.device
         segments[i].interfaceName = ifaceLabel
 
+        var segHeaders = config.headers
+        if let expectedETag {
+            segHeaders["If-Range"] = expectedETag
+        }
+
         var taskID = 0
         let task = CurlStreamTask(
             url: requestURL,
-            headers: config.headers,
+            headers: segHeaders,
             range: rangeStr,
             interfaceDevice: iface.device,
             interfaceAddress: iface.primaryAddress,
@@ -554,7 +589,14 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             onHeaders: { [weak self] resp in
                 guard let self else { return false }
                 return self.serialQueue.sync {
-                    self.handleCurlHeaders(taskID: taskID, index: i, iface: iface, response: resp)
+                    self.handleCurlHeaders(
+                        taskID: taskID,
+                        index: i,
+                        iface: iface,
+                        requestedStart: requestedStart,
+                        requestedEnd: requestedEnd,
+                        response: resp
+                    )
                 }
             },
             onData: { [weak self] data in
@@ -575,10 +617,31 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         task.start()
     }
 
-    private func handleCurlHeaders(taskID: Int, index i: Int, iface: NetworkInterfaceInfo, response: CurlHTTPResponse) -> Bool {
+    private func handleCurlHeaders(
+        taskID: Int,
+        index i: Int,
+        iface: NetworkInterfaceInfo,
+        requestedStart: Int64,
+        requestedEnd: Int64,
+        response: CurlHTTPResponse
+    ) -> Bool {
         guard !stopped, !finished, curlTasks[taskID] != nil else { return false }
         switch response.statusCode {
         case 206:
+            guard isConsistentPartialResponse(
+                etag: response.header("etag"),
+                contentRange: response.header("content-range"),
+                requestedStart: requestedStart,
+                requestedEnd: requestedEnd
+            ) else {
+                curlTasks.removeValue(forKey: taskID)
+                if fallbackDone {
+                    fail(DownloadFailure(message: String(localized: "Server returned inconsistent file representation")))
+                } else {
+                    fallbackToSingle()
+                }
+                return false
+            }
             retries[i] = 0
             interfaceErrorStreak[iface.device] = 0
             return true
@@ -593,9 +656,11 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             // 401/403/410 on a secondary interface often means the server locked the URL to one public IP.
             // Disable this interface for the current download and let healthy interfaces finish the segment.
             curlTasks.removeValue(forKey: taskID)
-            if healthyInterfaces.count > 1 {
-                disabledInterfaces.insert(iface.device)
-                if !pending.contains(i) { pending.insert(i, at: 0) }
+            if healthyInterfaces.contains(where: { $0.device != iface.device }) {
+                disableInterface(iface.device)
+                if i < segments.count, !segments[i].isDone, !pending.contains(i) {
+                    pending.insert(i, at: 0)
+                }
                 fillSlots()
             } else if fallbackDone {
                 fail(HTTPStatusError(status: response.statusCode))
@@ -603,6 +668,17 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 fallbackToSingle()
             }
             return false
+        }
+    }
+
+    private func disableInterface(_ device: String) {
+        disabledInterfaces.insert(device)
+        for (id, entry) in Array(curlTasks) where entry.iface.device == device {
+            curlTasks.removeValue(forKey: id)
+            entry.task.cancel()
+            if entry.index < segments.count, !segments[entry.index].isDone, !pending.contains(entry.index) {
+                pending.insert(entry.index, at: 0)
+            }
         }
     }
 
@@ -642,16 +718,15 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             }
             let streak = interfaceErrorStreak[iface.device, default: 0] + 1
             interfaceErrorStreak[iface.device] = streak
-            if streak >= 3, healthyInterfaces.count > 1 {
-                disabledInterfaces.insert(iface.device)
+            if streak >= 3, healthyInterfaces.contains(where: { $0.device != iface.device }) {
+                disableInterface(iface.device)
             }
             retrySegment(i, after: error)
             return
         }
 
         if segments[i].isDone {
-            let maxLimit = max(config.segmentCount, currentInterfaces.count * 2, activeLimit)
-            activeLimit = min(maxLimit, activeLimit + 1)
+            activeLimit = min(streamCeiling, activeLimit + 1)
             fillSlots()
         } else {
             retrySegment(i, after: nil)
@@ -660,12 +735,159 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     private func launchSingle() {
         singleReceived = 0
+        if useMultiNetwork, let iface = leastLoadedInterface() {
+            let task = CurlStreamTask(
+                url: requestURL,
+                headers: config.headers,
+                range: nil,
+                interfaceDevice: iface.device,
+                interfaceAddress: iface.primaryAddress,
+                ipv4Only: iface.ipv4Address != nil && iface.ipv6Address == nil,
+                originHost: config.url.host,
+                originScheme: config.url.scheme,
+                onHeaders: { [weak self] resp in
+                    guard let self else { return false }
+                    return self.serialQueue.sync {
+                        guard !self.stopped, !self.finished, self.curlSingleTask != nil else { return false }
+                        guard (200...299).contains(resp.statusCode) else {
+                            self.curlSingleTask = nil
+                            self.fail(HTTPStatusError(status: resp.statusCode))
+                            return false
+                        }
+                        self.singleTotal = resp.expectedContentLength > 0 ? resp.expectedContentLength : -1
+                        if self.probeFromSingle {
+                            self.probeFromSingle = false
+                            self.requestURL = resp.finalURL
+                            let ctype = resp.header("content-type")?
+                                .components(separatedBy: ";").first?
+                                .trimmingCharacters(in: .whitespaces)
+                            self.onProbe?(ProbeResult(
+                                totalBytes: self.singleTotal,
+                                supportsRanges: false,
+                                suggestedFileName: Self.fileName(fromContentDisposition: resp.header("content-disposition")),
+                                contentType: ctype,
+                                finalURL: resp.finalURL
+                            ))
+                        }
+                        return true
+                    }
+                },
+                onData: { [weak self] data in
+                    guard let self else { return false }
+                    return self.serialQueue.sync {
+                        guard !self.stopped, !self.finished, self.curlSingleTask != nil, let fh = self.fileHandle else {
+                            return false
+                        }
+                        do {
+                            try fh.seek(toOffset: UInt64(self.singleReceived))
+                            try fh.write(contentsOf: data)
+                            self.singleReceived += Int64(data.count)
+                            let key = self.label(for: iface)
+                            self.bytesByInterface[key, default: 0] += Int64(data.count)
+                        } catch {
+                            self.fail(error)
+                            return false
+                        }
+                        self.reportProgress()
+                        return true
+                    }
+                },
+                onComplete: { [weak self] result in
+                    guard let self else { return }
+                    self.serialQueue.async {
+                        guard !self.stopped, !self.finished, self.curlSingleTask != nil else { return }
+                        self.curlSingleTask = nil
+                        if case .failure(let error) = result {
+                            if let ce = error as? CurlError, ce.isCancelled { return }
+                            self.fail(error)
+                            return
+                        }
+                        if self.singleTotal > 0, self.singleReceived < self.singleTotal {
+                            self.fail(DownloadFailure(message: String(localized: "Connection closed early (\(self.singleReceived)/\(self.singleTotal) bytes)")))
+                            return
+                        }
+                        self.finishSuccess()
+                    }
+                }
+            )
+            curlSingleTask = task
+            task.start()
+            return
+        }
         let t = session.dataTask(with: makeRequest(range: nil))
         singleTask = t
         t.resume()
     }
 
     private static func isThrottle(_ status: Int) -> Bool { [408, 425, 429, 500, 502, 503, 504].contains(status) }
+
+    private static func strongETag(from raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              !trimmed.hasPrefix("W/"),
+              !trimmed.hasPrefix("w/") else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func isValidContentRange(
+        _ header: String?,
+        requestedStart: Int64,
+        requestedEnd: Int64,
+        expectedTotal: Int64
+    ) -> Bool {
+        guard let header = header?.trimmingCharacters(in: .whitespacesAndNewlines),
+              header.lowercased().hasPrefix("bytes ") else {
+            return false
+        }
+        let spec = header.dropFirst(6).trimmingCharacters(in: .whitespaces)
+        let parts = spec.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return false }
+        let rangeParts = parts[0].split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        guard rangeParts.count == 2,
+              let start = Int64(rangeParts[0]),
+              let end = Int64(rangeParts[1]),
+              let total = Int64(parts[1]) else {
+            return false
+        }
+        guard start == requestedStart,
+              end >= start,
+              end <= requestedEnd else {
+            return false
+        }
+        if expectedTotal > 0, total != expectedTotal {
+            return false
+        }
+        return true
+    }
+
+    private func isConsistentPartialResponse(
+        etag: String?,
+        contentRange: String?,
+        requestedStart: Int64,
+        requestedEnd: Int64
+    ) -> Bool {
+        guard Self.isValidContentRange(
+            contentRange,
+            requestedStart: requestedStart,
+            requestedEnd: requestedEnd,
+            expectedTotal: expectedTotal
+        ) else {
+            return false
+        }
+        if let expectedETag {
+            guard let responseETag = Self.strongETag(from: etag), responseETag == expectedETag else {
+                return false
+            }
+        } else if useMultiNetwork {
+            guard let responseETag = Self.strongETag(from: etag) else {
+                return false
+            }
+            expectedETag = responseETag
+        }
+        return true
+    }
 
     /// Sunucu Range'i yok sayıp 200 döndürdüyse ya da parça isteklerini reddettiyse tek akışa geç.
     private func fallbackToSingle() {
@@ -676,6 +898,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         segmentTasks = [:]
         old.values.forEach { $0.task.cancel() }
         segments = []
+        pending = []
         closeFile()
         guard openFile(create: true, preallocate: nil) else { return }
         mode = .single
@@ -762,6 +985,20 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         if let entry = segmentTasks[dataTask.taskIdentifier] {
             switch http.statusCode {
             case 206:
+                guard isConsistentPartialResponse(
+                    etag: http.value(forHTTPHeaderField: "ETag"),
+                    contentRange: http.value(forHTTPHeaderField: "Content-Range"),
+                    requestedStart: entry.requestedStart,
+                    requestedEnd: entry.requestedEnd
+                ) else {
+                    completionHandler(.cancel)
+                    if fallbackDone {
+                        fail(DownloadFailure(message: String(localized: "Server returned inconsistent file representation")))
+                    } else {
+                        fallbackToSingle()
+                    }
+                    return
+                }
                 completionHandler(.allow)
                 retries[entry.index] = 0
             case 200:

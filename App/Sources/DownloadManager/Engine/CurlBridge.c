@@ -44,6 +44,23 @@ int mc_curl_setopt_followlocation(void *handle, long enable) {
     return (int)curl_easy_setopt((CURL *)handle, CURLOPT_FOLLOWLOCATION, enable);
 }
 
+int mc_curl_setopt_protocols_http_https(void *handle) {
+#if LIBCURL_VERSION_NUM >= 0x075500
+    CURLcode rc = curl_easy_setopt((CURL *)handle, CURLOPT_PROTOCOLS_STR, "http,https");
+    if (rc == CURLE_OK) {
+        return (int)curl_easy_setopt((CURL *)handle, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+    }
+#endif
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    CURLcode rc2 = curl_easy_setopt((CURL *)handle, CURLOPT_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
+    if (rc2 != CURLE_OK) {
+        return (int)rc2;
+    }
+    return (int)curl_easy_setopt((CURL *)handle, CURLOPT_REDIR_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
+#pragma clang diagnostic pop
+}
+
 int mc_curl_setopt_nosignal(void *handle, long enable) {
     return (int)curl_easy_setopt((CURL *)handle, CURLOPT_NOSIGNAL, enable);
 }

@@ -81,6 +81,7 @@ final class DownloadStore: ObservableObject {
     /// Computes the active network interfaces for a specific download item,
     /// honoring both per-download network selection and live per-network toggles in the detail view.
     func effectiveInterfaces(for item: DownloadItem) -> [NetworkInterfaceInfo] {
+        guard settings.multiNetworkEnabled else { return [] }
         var list = NetworkInterfaceMonitor.shared.activeInterfacesForDownload(settings: settings)
         if let allowed = item.allowedNetworkIDs, !allowed.isEmpty {
             let allDetected = NetworkInterfaceMonitor.shared.interfaces
