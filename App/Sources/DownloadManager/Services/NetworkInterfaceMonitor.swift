@@ -162,8 +162,9 @@ final class NetworkInterfaceMonitor: ObservableObject {
     }
 
     /// Interfaces to use for a download based on current settings.
-    /// Returns an empty array when multi-network is disabled or fewer than 2 interfaces are selected
-    /// (in which case the downloader uses the default OS route).
+    /// Returns an empty array when multi-network is disabled, or in auto-select mode when fewer than
+    /// 2 auto-selectable interfaces are available (falling back to the default OS route).
+    /// In manual mode, honors the user's explicit selection (including pinning a single adapter).
     func activeInterfacesForDownload(settings: AppSettings) -> [NetworkInterfaceInfo] {
         guard settings.multiNetworkEnabled else { return [] }
         if settings.multiNetworkAutoSelect {
