@@ -160,7 +160,50 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 activeLimit = streamCeiling
             }
 
+            rebalanceForAddedInterfaces(added)
             fillSlots()
+        }
+    }
+
+    private func rebalanceForAddedInterfaces(_ added: Set<String>) {
+        guard useMultiNetwork, !added.isEmpty, pending.isEmpty else { return }
+        let effectiveLimit = min(activeLimit, streamCeiling)
+        guard activeTaskCount >= effectiveLimit else { return }
+
+        let healthy = healthyInterfaces
+        let addedHealthyCount = healthy.filter { added.contains($0.device) }.count
+        guard addedHealthyCount > 0, healthy.count > 1 else { return }
+
+        let targetPerAdapter = max(1, effectiveLimit / healthy.count)
+        var slotsToReassign = addedHealthyCount * targetPerAdapter
+
+        var countsByDevice: [String: Int] = [:]
+        for entry in curlTasks.values {
+            countsByDevice[entry.iface.device, default: 0] += 1
+        }
+
+        while slotsToReassign > 0 {
+            let candidate = curlTasks
+                .filter { _, entry in
+                    !added.contains(entry.iface.device)
+                        && countsByDevice[entry.iface.device, default: 0] > targetPerAdapter
+                        && entry.index < segments.count
+                        && !segments[entry.index].isDone
+                }
+                .max { a, b in
+                    let remA = segments[a.value.index].length - segments[a.value.index].received
+                    let remB = segments[b.value.index].length - segments[b.value.index].received
+                    return remA < remB
+                }
+
+            guard let (taskID, entry) = candidate else { break }
+            curlTasks.removeValue(forKey: taskID)
+            entry.task.cancel()
+            countsByDevice[entry.iface.device, default: 1] -= 1
+            if !pending.contains(entry.index) {
+                pending.insert(entry.index, at: 0)
+            }
+            slotsToReassign -= 1
         }
     }
 
