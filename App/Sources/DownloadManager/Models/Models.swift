@@ -45,6 +45,7 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var receivedBytes: Int64 = 0
     var supportsRanges = false
     var eTag: String? = nil
+    var resolvedURL: URL? = nil
     var segments: [SegmentInfo] = []
     var headers: [String: String] = [:]
     var cookieFile: String? = nil
@@ -69,7 +70,7 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var lastHTTPStatus: Int? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, url, fileName, directory, kind, state, totalBytes, receivedBytes, supportsRanges, eTag,
+        case id, url, fileName, directory, kind, state, totalBytes, receivedBytes, supportsRanges, eTag, resolvedURL,
              segments, headers, cookieFile, errorMessage, createdAt, completedAt, finalPath, requestedSegments, sourceBrowser
     }
 

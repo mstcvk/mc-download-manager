@@ -190,14 +190,15 @@ struct AddDownloadView: View {
         let ping = monitor.pingMs[iface.device]
 
         return Button {
-            hasCustomNetworkSelection = true
             if selected {
                 // Keep at least 1 network selected
                 if selectedInterfaces.count > 1 {
                     deselectedNetworkIDs.insert(iface.id)
+                    hasCustomNetworkSelection = true
                 }
             } else {
                 deselectedNetworkIDs.remove(iface.id)
+                hasCustomNetworkSelection = true
             }
         } label: {
             VStack(alignment: .leading, spacing: 6) {

@@ -210,8 +210,13 @@ final class DownloadStore: ObservableObject {
     }
 
     private func startFile(_ item: DownloadItem) {
-        let resumable = item.supportsRanges && item.totalBytes > 0 && !item.segments.isEmpty
-            && FileManager.default.fileExists(atPath: item.partURL.path)
+        let resumable = SegmentedDownloader.canResume(
+            totalBytes: item.totalBytes,
+            supportsRanges: item.supportsRanges,
+            segments: item.segments,
+            eTag: item.eTag,
+            partURL: item.partURL
+        )
         var cfg = SegmentedDownloader.Configuration(
             url: item.url, headers: item.headers, partURL: item.partURL,
             segmentCount: item.requestedSegments > 0 ? item.requestedSegments : settings.segmentCount,
@@ -220,6 +225,7 @@ final class DownloadStore: ObservableObject {
             cfg.resumeSegments = item.segments
             cfg.resumeTotal = item.totalBytes
             cfg.resumeETag = item.eTag
+            cfg.resumeURL = item.resolvedURL
         }
         let dl = SegmentedDownloader(configuration: cfg)
         let id = item.id
@@ -260,7 +266,7 @@ final class DownloadStore: ObservableObject {
             $0.speed = 0
             $0.networkSpeeds = [:]
             if $0.startedAt == nil || !resumable { $0.startedAt = Date(); $0.peakSpeed = 0; $0.speedHistory = []; $0.networkBytes = [:] }
-            if !resumable { $0.receivedBytes = 0; $0.segments = [] }
+            if !resumable { $0.receivedBytes = 0; $0.segments = []; $0.eTag = nil; $0.resolvedURL = nil }
         }
         dl.start()
     }
@@ -270,6 +276,7 @@ final class DownloadStore: ObservableObject {
             item.totalBytes = p.totalBytes
             item.supportsRanges = p.supportsRanges
             item.eTag = p.eTag
+            item.resolvedURL = p.finalURL
             item.state = .downloading
             if let n = p.suggestedFileName, !n.isEmpty {
                 item.fileName = Self.sanitize(n)

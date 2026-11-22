@@ -25,6 +25,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         var resumeSegments: [SegmentInfo] = []
         var resumeTotal: Int64 = -1
         var resumeETag: String? = nil
+        var resumeURL: URL? = nil
         /// Active network interfaces to combine. When 2 or more are supplied,
         /// multi-network CurlStreamTask mode is used; otherwise standard URLSession is used.
         var interfaces: [NetworkInterfaceInfo] = []
@@ -142,6 +143,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 closeFile()
                 guard openFile(create: true, preallocate: nil) else { return }
                 singleTotal = -1
+                requestURL = config.url
                 launchSingle()
                 return
             }
@@ -211,17 +213,37 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     // MARK: - Kontrol
 
+    static func canResume(
+        totalBytes: Int64,
+        supportsRanges: Bool = true,
+        segments: [SegmentInfo],
+        eTag: String?,
+        partURL: URL
+    ) -> Bool {
+        totalBytes > 0
+            && supportsRanges
+            && !segments.isEmpty
+            && strongETag(from: eTag) != nil
+            && FileManager.default.fileExists(atPath: partURL.path)
+    }
+
     func start() {
         serialQueue.async { [self] in
             let resumeETag = Self.strongETag(from: config.resumeETag)
-            let canResume = config.resumeTotal > 0
-                && !config.resumeSegments.isEmpty
-                && resumeETag != nil
-                && FileManager.default.fileExists(atPath: config.partURL.path)
+            let canResume = Self.canResume(
+                totalBytes: config.resumeTotal,
+                supportsRanges: true,
+                segments: config.resumeSegments,
+                eTag: resumeETag,
+                partURL: config.partURL
+            )
             if canResume {
                 segments = config.resumeSegments
                 expectedTotal = config.resumeTotal
                 expectedETag = resumeETag
+                if let resumeURL = config.resumeURL {
+                    requestURL = resumeURL
+                }
                 guard openFile(create: false, preallocate: nil) else { return }
                 mode = .multi
                 launchPendingSegments()
@@ -872,6 +894,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                                 self.closeFile()
                                 guard self.openFile(create: true, preallocate: nil) else { return }
                                 self.singleTotal = -1
+                                self.requestURL = self.config.url
                                 self.launchSingle()
                                 return
                             }
