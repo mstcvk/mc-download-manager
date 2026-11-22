@@ -277,6 +277,12 @@ final class DownloadStore: ObservableObject {
             item.supportsRanges = p.supportsRanges
             item.eTag = p.eTag
             item.resolvedURL = p.finalURL
+            if let segs = p.segments {
+                item.segments = segs
+            }
+            if let recv = p.receivedBytes {
+                item.receivedBytes = recv
+            }
             item.state = .downloading
             if let n = p.suggestedFileName, !n.isEmpty {
                 item.fileName = Self.sanitize(n)
