@@ -73,6 +73,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private var curlProbeTask: CurlStreamTask?
     private var singleTask: URLSessionDataTask?
     private var curlSingleTask: CurlStreamTask?
+    private var curlSingleInterface: NetworkInterfaceInfo?
     private var singleReceived: Int64 = 0
     private var singleTotal: Int64 = -1
     private var fileHandle: FileHandle?
@@ -128,6 +129,17 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             for dev in added {
                 disabledInterfaces.remove(dev)
                 interfaceErrorStreak[dev] = 0
+            }
+
+            if mode == .single, let singleIface = curlSingleInterface, removed.contains(singleIface.device) {
+                curlSingleTask?.cancel()
+                curlSingleTask = nil
+                curlSingleInterface = nil
+                closeFile()
+                guard openFile(create: true, preallocate: nil) else { return }
+                singleTotal = -1
+                launchSingle()
+                return
             }
 
             guard mode == .multi else { return }
@@ -187,6 +199,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         curlProbeTask = nil
         curlSingleTask?.cancel()
         curlSingleTask = nil
+        curlSingleInterface = nil
         let tasks = curlTasks
         curlTasks = [:]
         tasks.values.forEach { $0.task.cancel() }
@@ -736,6 +749,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private func launchSingle() {
         singleReceived = 0
         if useMultiNetwork, let iface = leastLoadedInterface() {
+            var singleTaskID = 0
             let task = CurlStreamTask(
                 url: requestURL,
                 headers: config.headers,
@@ -748,9 +762,10 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 onHeaders: { [weak self] resp in
                     guard let self else { return false }
                     return self.serialQueue.sync {
-                        guard !self.stopped, !self.finished, self.curlSingleTask != nil else { return false }
+                        guard !self.stopped, !self.finished, self.curlSingleTask?.id == singleTaskID else { return false }
                         guard (200...299).contains(resp.statusCode) else {
                             self.curlSingleTask = nil
+                            self.curlSingleInterface = nil
                             self.fail(HTTPStatusError(status: resp.statusCode))
                             return false
                         }
@@ -775,7 +790,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 onData: { [weak self] data in
                     guard let self else { return false }
                     return self.serialQueue.sync {
-                        guard !self.stopped, !self.finished, self.curlSingleTask != nil, let fh = self.fileHandle else {
+                        guard !self.stopped, !self.finished, self.curlSingleTask?.id == singleTaskID, let fh = self.fileHandle else {
                             return false
                         }
                         do {
@@ -795,10 +810,19 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 onComplete: { [weak self] result in
                     guard let self else { return }
                     self.serialQueue.async {
-                        guard !self.stopped, !self.finished, self.curlSingleTask != nil else { return }
+                        guard !self.stopped, !self.finished, self.curlSingleTask?.id == singleTaskID else { return }
                         self.curlSingleTask = nil
+                        self.curlSingleInterface = nil
                         if case .failure(let error) = result {
                             if let ce = error as? CurlError, ce.isCancelled { return }
+                            if self.healthyInterfaces.contains(where: { $0.device != iface.device }) {
+                                self.disabledInterfaces.insert(iface.device)
+                                self.closeFile()
+                                guard self.openFile(create: true, preallocate: nil) else { return }
+                                self.singleTotal = -1
+                                self.launchSingle()
+                                return
+                            }
                             self.fail(error)
                             return
                         }
@@ -810,10 +834,13 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                     }
                 }
             )
+            singleTaskID = task.id
             curlSingleTask = task
+            curlSingleInterface = iface
             task.start()
             return
         }
+        curlSingleInterface = nil
         let t = session.dataTask(with: makeRequest(range: nil))
         singleTask = t
         t.resume()
