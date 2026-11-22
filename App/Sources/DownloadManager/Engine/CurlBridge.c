@@ -1,6 +1,9 @@
 #include "CurlBridge.h"
 #include <curl/curl.h>
 #include <dispatch/dispatch.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 void mc_curl_global_init(void) {
     static dispatch_once_t onceToken;
@@ -26,6 +29,41 @@ int mc_curl_setopt_url(void *handle, const char *url) {
 
 int mc_curl_setopt_interface(void *handle, const char *iface) {
     return (int)curl_easy_setopt((CURL *)handle, CURLOPT_INTERFACE, iface);
+}
+
+static int mc_curl_sockopt_cb(void *clientp, curl_socket_t curlfd, curlsocktype purpose) {
+    (void)purpose;
+    unsigned int ifindex = (unsigned int)(uintptr_t)clientp;
+    if (ifindex == 0) return CURL_SOCKOPT_OK;
+
+    struct sockaddr_storage ss;
+    socklen_t len = sizeof(ss);
+    if (getsockname(curlfd, (struct sockaddr *)&ss, &len) == 0) {
+        if (ss.ss_family == AF_INET) {
+            if (setsockopt(curlfd, IPPROTO_IP, IP_BOUND_IF, &ifindex, sizeof(ifindex)) != 0) {
+                return CURL_SOCKOPT_ERROR;
+            }
+        } else if (ss.ss_family == AF_INET6) {
+            if (setsockopt(curlfd, IPPROTO_IPV6, IPV6_BOUND_IF, &ifindex, sizeof(ifindex)) != 0) {
+                return CURL_SOCKOPT_ERROR;
+            }
+        }
+    } else {
+        if (setsockopt(curlfd, IPPROTO_IP, IP_BOUND_IF, &ifindex, sizeof(ifindex)) != 0 && errno != ENOPROTOOPT) {
+            return CURL_SOCKOPT_ERROR;
+        }
+        if (setsockopt(curlfd, IPPROTO_IPV6, IPV6_BOUND_IF, &ifindex, sizeof(ifindex)) != 0 && errno != ENOPROTOOPT) {
+            return CURL_SOCKOPT_ERROR;
+        }
+    }
+    return CURL_SOCKOPT_OK;
+}
+
+int mc_curl_setopt_bound_interface(void *handle, unsigned int ifindex) {
+    if (ifindex == 0) return (int)CURLE_OK;
+    CURLcode c1 = curl_easy_setopt((CURL *)handle, CURLOPT_SOCKOPTFUNCTION, mc_curl_sockopt_cb);
+    if (c1 != CURLE_OK) return (int)c1;
+    return (int)curl_easy_setopt((CURL *)handle, CURLOPT_SOCKOPTDATA, (void *)(uintptr_t)ifindex);
 }
 
 int mc_curl_setopt_range(void *handle, const char *range) {

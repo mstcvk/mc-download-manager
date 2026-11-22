@@ -6,6 +6,7 @@ struct ProbeResult {
     var suggestedFileName: String?
     var contentType: String?
     var finalURL: URL?
+    var eTag: String? = nil
 }
 
 /// Tek bir dosyayı N paralel HTTP Range isteğiyle indirir.
@@ -23,6 +24,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         var minSegmentSize: Int64 = 512 * 1024
         var resumeSegments: [SegmentInfo] = []
         var resumeTotal: Int64 = -1
+        var resumeETag: String? = nil
         /// Active network interfaces to combine. When 2 or more are supplied,
         /// multi-network CurlStreamTask mode is used; otherwise standard URLSession is used.
         var interfaces: [NetworkInterfaceInfo] = []
@@ -211,12 +213,15 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
 
     func start() {
         serialQueue.async { [self] in
+            let resumeETag = Self.strongETag(from: config.resumeETag)
             let canResume = config.resumeTotal > 0
                 && !config.resumeSegments.isEmpty
+                && resumeETag != nil
                 && FileManager.default.fileExists(atPath: config.partURL.path)
             if canResume {
                 segments = config.resumeSegments
                 expectedTotal = config.resumeTotal
+                expectedETag = resumeETag
                 guard openFile(create: false, preallocate: nil) else { return }
                 mode = .multi
                 launchPendingSegments()
@@ -382,11 +387,11 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         let ctype = resp.header("content-type")?
             .components(separatedBy: ";").first?
             .trimmingCharacters(in: .whitespaces)
+        let strongETag = Self.strongETag(from: resp.header("etag"))
         onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
-                             suggestedFileName: name, contentType: ctype, finalURL: resp.finalURL))
+                             suggestedFileName: name, contentType: ctype, finalURL: resp.finalURL, eTag: strongETag))
 
         let count = ranges ? max(1, min(streamCeiling, Int(total / config.minSegmentSize))) : 1
-        let strongETag = Self.strongETag(from: resp.header("etag"))
         let canValidateMulti = !useMultiNetwork || strongETag != nil
         if ranges && count > 1 && canValidateMulti {
             expectedETag = strongETag
@@ -443,11 +448,11 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         let ctype = http.value(forHTTPHeaderField: "Content-Type")?
             .components(separatedBy: ";").first?
             .trimmingCharacters(in: .whitespaces)
+        let strongETag = Self.strongETag(from: http.value(forHTTPHeaderField: "ETag"))
         onProbe?(ProbeResult(totalBytes: total, supportsRanges: ranges,
-                             suggestedFileName: name, contentType: ctype, finalURL: http.url))
+                             suggestedFileName: name, contentType: ctype, finalURL: http.url, eTag: strongETag))
 
         let count = ranges ? max(1, min(streamCeiling, Int(total / config.minSegmentSize))) : 1
-        let strongETag = Self.strongETag(from: http.value(forHTTPHeaderField: "ETag"))
         let canValidateMulti = !useMultiNetwork || strongETag != nil
         if ranges && count > 1 && canValidateMulti {
             expectedETag = strongETag
@@ -690,6 +695,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             guard isConsistentPartialResponse(
                 etag: response.header("etag"),
                 contentRange: response.header("content-range"),
+                finalURL: response.finalURL,
                 requestedStart: requestedStart,
                 requestedEnd: requestedEnd
             ) else {
@@ -938,9 +944,13 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private func isConsistentPartialResponse(
         etag: String?,
         contentRange: String?,
+        finalURL: URL?,
         requestedStart: Int64,
         requestedEnd: Int64
     ) -> Bool {
+        guard let finalURL, finalURL == requestURL else {
+            return false
+        }
         guard Self.isValidContentRange(
             contentRange,
             requestedStart: requestedStart,
@@ -954,10 +964,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 return false
             }
         } else if useMultiNetwork {
-            guard let responseETag = Self.strongETag(from: etag) else {
-                return false
-            }
-            expectedETag = responseETag
+            return false
         }
         return true
     }
@@ -1061,6 +1068,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
                 guard isConsistentPartialResponse(
                     etag: http.value(forHTTPHeaderField: "ETag"),
                     contentRange: http.value(forHTTPHeaderField: "Content-Range"),
+                    finalURL: http.url,
                     requestedStart: entry.requestedStart,
                     requestedEnd: entry.requestedEnd
                 ) else {

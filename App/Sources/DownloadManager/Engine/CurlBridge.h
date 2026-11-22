@@ -13,6 +13,7 @@ void mc_curl_easy_cleanup(void *handle);
 
 int mc_curl_setopt_url(void *handle, const char *url);
 int mc_curl_setopt_interface(void *handle, const char *iface);
+int mc_curl_setopt_bound_interface(void *handle, unsigned int ifindex);
 int mc_curl_setopt_range(void *handle, const char *range);
 int mc_curl_setopt_accept_encoding(void *handle, const char *enc);
 int mc_curl_setopt_httpheader(void *handle, void *slist);

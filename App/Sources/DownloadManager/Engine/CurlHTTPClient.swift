@@ -192,8 +192,18 @@ final class CurlStreamTask {
             if !useAddressFallback, let dev = interfaceDevice, !dev.isEmpty {
                 let spec = "if!\(dev)"
                 _ = spec.withCString { mc_curl_setopt_interface(handle, $0) }
+                let ifIndex = if_nametoindex(dev)
+                if ifIndex != 0 {
+                    _ = mc_curl_setopt_bound_interface(handle, ifIndex)
+                }
             } else if let addr = interfaceAddress, !addr.isEmpty {
                 _ = addr.withCString { mc_curl_setopt_interface(handle, $0) }
+                if let dev = interfaceDevice, !dev.isEmpty {
+                    let ifIndex = if_nametoindex(dev)
+                    if ifIndex != 0 {
+                        _ = mc_curl_setopt_bound_interface(handle, ifIndex)
+                    }
+                }
             }
 
             _ = mc_curl_setopt_header_cb(handle, Self.mcCurlHeaderCallback, userdata)

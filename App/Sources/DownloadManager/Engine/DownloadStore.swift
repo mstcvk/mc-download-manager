@@ -219,6 +219,7 @@ final class DownloadStore: ObservableObject {
         if resumable {
             cfg.resumeSegments = item.segments
             cfg.resumeTotal = item.totalBytes
+            cfg.resumeETag = item.eTag
         }
         let dl = SegmentedDownloader(configuration: cfg)
         let id = item.id
@@ -268,6 +269,7 @@ final class DownloadStore: ObservableObject {
         update(id) { item in
             item.totalBytes = p.totalBytes
             item.supportsRanges = p.supportsRanges
+            item.eTag = p.eTag
             item.state = .downloading
             if let n = p.suggestedFileName, !n.isEmpty {
                 item.fileName = Self.sanitize(n)

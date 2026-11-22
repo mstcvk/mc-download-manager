@@ -1202,16 +1202,6 @@
         }
       }
     },
-    "Start": {
-      "localizations": {
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başlangıç"
-          }
-        }
-      }
-    },
     "Info": {
       "localizations": {
         "tr": {
