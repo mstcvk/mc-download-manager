@@ -34,7 +34,7 @@ DMG'yi açıp uygulamayı *Applications* klasörüne sürüklemek yeterlidir. Ar
   Uygulama çalışmıyorsa eklenti onu başlatır (native messaging) ve açılınca indirmeyi teslim eder; başlatamazsa indirme tarayıcıda devam eder.
 - **Video indirme** — sayfadaki `<video>`, `.m3u8` ve `.mpd` akışları yakalanır; "Bu sayfadaki videoyu indir" gömülü yt-dlp'yi
   (ffmpeg ile birleştirme dahil) kullanır. Varsayılan çıktı en fazla 1080p MP4'tür (kapsayıcı ve çözünürlük ayarlanabilir). Tarayıcı çerezleri
-  yt-dlp'ye aktarılır; yaş doğrulamalı videolar için uygulama içi giriş penceresi vardır. yt-dlp tek tıkla GitHub'dan güncellenebilir.
+  yt-dlp'ye aktarılır; yaş doğrulamalı videolar için uygulama içi giriş penceresi vardır. yt-dlp tek tıkla GitHub'dan güncellenebilir; gömülü kopya eskidiği için bir indirme başarısız olursa uygulama güncelleyip yeniden denemeyi önerir.
 - **Pano** — bir bağlantı kopyaladığınızda uygulama indirmek isteyip istemediğinizi sorar; ana pencereye ⌘V ile bağlantı yapıştırabilirsiniz.
 - **Arayüz** — kenar çubuğunda kategoriler (Resim, Müzik, Video, Uygulama, Belge, Arşiv…), sıralanabilir tablo, arama,
   IDM tarzı dosya özelinde pencere (bağlantı tablosu, parça çubuğu, otomatik kapat seçeneği), menü çubuğu simgesi, bildirimler.

@@ -63,6 +63,20 @@ enum VideoDownloader {
         message.localizedCaseInsensitiveContains("page needs to be reloaded")
     }
 
+    /// Output that usually means the yt-dlp in use predates a change on the site, so a newer
+    /// release is the fix. Example: YouTube shipped a player the solver could not run
+    /// (yt-dlp#18123), which left only storyboards and ended in "Requested format is not available".
+    static func isOutdatedToolFailure(_ output: String) -> Bool {
+        [
+            "challenge solving failed",
+            "Signature solving failed",
+            "Only images are available",
+            "nsig extraction failed",
+            "Unable to extract",
+            "Confirm you are on the latest version",
+        ].contains { output.localizedCaseInsensitiveContains($0) }
+    }
+
     static func environment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         let extra = [helpersDirectory.path, "/opt/homebrew/bin", "/usr/local/bin", NSHomeDirectory() + "/.local/bin"]

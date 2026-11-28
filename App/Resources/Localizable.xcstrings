@@ -3391,6 +3391,66 @@
           }
         }
       }
+    },
+    "Checking for a newer yt-dlp…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha yeni bir yt-dlp sürümü denetleniyor…"
+          }
+        }
+      }
+    },
+    "Update yt-dlp and retry?": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "yt-dlp güncellenip yeniden denensin mi?"
+          }
+        }
+      }
+    },
+    "The download failed in a way that usually means yt-dlp is out of date (installed: %@, latest: %@). Sites such as YouTube change often and break older yt-dlp versions.\n\nMC Download Manager can download the latest yt-dlp from its official GitHub releases into its own Application Support folder and retry the download.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirme, genellikle yt-dlp'nin eskidiğini gösteren bir hatayla başarısız oldu (kurulu: %1$@, en son: %2$@). YouTube gibi siteler sık değişir ve eski yt-dlp sürümlerini bozar.\n\nMC Download Manager en son yt-dlp'yi resmi GitHub sürümlerinden kendi Application Support klasörüne indirip indirmeyi yeniden deneyebilir."
+          }
+        }
+      }
+    },
+    "Updating yt-dlp…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "yt-dlp güncelleniyor…"
+          }
+        }
+      }
+    },
+    "→ yt-dlp updated to %@; retrying…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "→ yt-dlp %@ sürümüne güncellendi; yeniden deneniyor…"
+          }
+        }
+      }
+    },
+    "yt-dlp could not be updated: %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "yt-dlp güncellenemedi: %@"
+          }
+        }
+      }
     }
   }
 }
