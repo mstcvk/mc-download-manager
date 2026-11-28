@@ -34,6 +34,15 @@ final class DownloadStore: ObservableObject {
     private var denoDeclinedThisLaunch = false
     /// Video downloads that are retried without cookies after YouTube rejected the signed-in client.
     private var cookielessVideos: Set<UUID> = []
+    /// Video downloads whose failure looks like an outdated yt-dlp, waiting for the update check,
+    /// prompt and install to finish (id → the error to show if no update happens).
+    private var ytdlpUpdateWaiters: [UUID: String] = [:]
+    private var ytdlpUpdateInFlight = false
+    private var ytdlpUpdateDeclinedThisLaunch = false
+    /// Video downloads that already went through the yt-dlp update check.
+    private var ytdlpUpdateTried: Set<UUID> = []
+    /// When the last check found the yt-dlp in use to be the latest release.
+    private var ytdlpFoundCurrentAt: Date?
     /// Failed downloads waiting for the "download in the browser instead?" prompt.
     private var handOffQueue: [UUID] = []
     private var handOffPrompting = false
@@ -373,7 +382,8 @@ final class DownloadStore: ObservableObject {
         update(id) {
             $0.state = .downloading; $0.errorMessage = nil; $0.receivedBytes = 0; $0.speed = 0; $0.totalBytes = -1
             $0.stage = String(localized: "Fetching video information…")
-            if useCookies { $0.log = "" }   // keep the failed attempt's output visible above the retry
+            // keep the failed attempt's output visible above the retry
+            if useCookies, !self.ytdlpUpdateTried.contains(id) { $0.log = "" }
         }
         let outDir = destinationDirectory(for: item)
         try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
@@ -461,10 +471,101 @@ final class DownloadStore: ObservableObject {
                 startVideo(item)
                 return
             }
+            if shouldCheckForYtDlpUpdate(item, error: e.localizedDescription) {
+                ytdlpUpdateWaiters[id] = e.localizedDescription
+                item.speed = 0
+                item.stage = String(localized: "Checking for a newer yt-dlp…")
+                items[i] = item
+                checkForYtDlpUpdate()
+                return
+            }
             item.state = .failed
             item.errorMessage = e.localizedDescription
             item.speed = 0
             items[i] = item
+        }
+        scheduleSave()
+        pumpQueue()
+    }
+
+    // MARK: - Outdated yt-dlp
+
+    /// Sites change often and break older yt-dlp builds; the bundled copy is only as new as the app release.
+    /// When a failure looks like that, look for a newer yt-dlp release, offer to install it and retry.
+    private func shouldCheckForYtDlpUpdate(_ item: DownloadItem, error: String) -> Bool {
+        guard !ytdlpUpdateTried.contains(item.id), !ytdlpUpdateDeclinedThisLaunch else { return false }
+        if let t = ytdlpFoundCurrentAt, Date().timeIntervalSince(t) < 3600 { return false }
+        // A custom path takes precedence over the copy the updater installs, so updating would change nothing.
+        if !settings.ytdlpPath.isEmpty, FileManager.default.isExecutableFile(atPath: settings.ytdlpPath) { return false }
+        return VideoDownloader.isOutdatedToolFailure(error + "\n" + item.log)
+    }
+
+    private func checkForYtDlpUpdate() {
+        guard !ytdlpUpdateInFlight else { return }   // the running check / prompt / install picks up new waiters
+        ytdlpUpdateInFlight = true
+        ToolInstaller.shared.checkForNewerYtDlp(custom: settings.ytdlpPath) { [weak self] installed, newer, reachable in
+            guard let self else { return }
+            guard let newer else {
+                if reachable { self.ytdlpFoundCurrentAt = Date() }
+                self.failYtDlpUpdateWaiters()
+                return
+            }
+            self.promptForYtDlpUpdate(installed: installed, latest: newer)
+        }
+    }
+
+    private func promptForYtDlpUpdate(installed: String?, latest: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.icon = NSApp.applicationIconImage
+        alert.messageText = String(localized: "Update yt-dlp and retry?")
+        alert.informativeText = String(localized: "The download failed in a way that usually means yt-dlp is out of date (installed: \(installed ?? "?"), latest: \(latest)). Sites such as YouTube change often and break older yt-dlp versions.\n\nMC Download Manager can download the latest yt-dlp from its official GitHub releases into its own Application Support folder and retry the download.")
+        alert.addButton(withTitle: String(localized: "Update yt-dlp"))
+        alert.addButton(withTitle: String(localized: "Not Now")).keyEquivalent = "\u{1b}"
+        alert.window.level = .floating
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            ytdlpUpdateDeclinedThisLaunch = true
+            failYtDlpUpdateWaiters()
+            return
+        }
+        for id in ytdlpUpdateWaiters.keys { update(id) { $0.stage = String(localized: "Updating yt-dlp…") } }
+        ToolInstaller.shared.installOrUpdateYtDlp { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let version):
+                self.retryYtDlpUpdateWaiters(version: version)
+            case .failure(let e):
+                self.ytdlpUpdateDeclinedThisLaunch = true   // don't loop on a failing update; Settings ▸ Video can retry
+                for id in self.ytdlpUpdateWaiters.keys {
+                    self.update(id) { $0.log += String(localized: "yt-dlp could not be updated: \(e.localizedDescription)") + "\n" }
+                }
+                self.failYtDlpUpdateWaiters()
+            }
+        }
+    }
+
+    private func retryYtDlpUpdateWaiters(version: String) {
+        ytdlpUpdateInFlight = false
+        let waiting = ytdlpUpdateWaiters
+        ytdlpUpdateWaiters = [:]
+        for id in waiting.keys {
+            ytdlpUpdateTried.insert(id)
+            guard let item = items.first(where: { $0.id == id }), item.state == .downloading else { continue }
+            update(id) { $0.log += String(localized: "→ yt-dlp updated to \(version); retrying…") + "\n" }
+            startVideo(item)
+        }
+    }
+
+    /// No update happened (already current, offline, declined or failed): report the original error.
+    private func failYtDlpUpdateWaiters() {
+        ytdlpUpdateInFlight = false
+        let waiting = ytdlpUpdateWaiters
+        ytdlpUpdateWaiters = [:]
+        for (id, message) in waiting {
+            ytdlpUpdateTried.insert(id)
+            guard let i = index(of: id), items[i].state == .downloading else { continue }
+            update(id) { $0.state = .failed; $0.errorMessage = message; $0.speed = 0 }
         }
         scheduleSave()
         pumpQueue()
@@ -520,6 +621,7 @@ final class DownloadStore: ObservableObject {
         update(id) { $0.state = .paused; $0.speed = 0 }
         downloaders[id]?.stop()
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
+        ytdlpUpdateWaiters[id] = nil
         scheduleSave()
         pumpQueue()
     }
@@ -528,6 +630,7 @@ final class DownloadStore: ObservableObject {
         guard let i = index(of: id), [.paused, .failed, .cancelled].contains(items[i].state) else { return }
         update(id) { $0.state = .queued; $0.errorMessage = nil; $0.lastHTTPStatus = nil }
         cookielessVideos.remove(id)
+        ytdlpUpdateTried.remove(id)
         pumpQueue()
     }
 
@@ -543,6 +646,7 @@ final class DownloadStore: ObservableObject {
         let item = items[i]
         if let dl = downloaders.removeValue(forKey: id) { dl.stop() }
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
+        ytdlpUpdateWaiters[id] = nil
         try? FileManager.default.removeItem(at: item.partURL)
         update(id) { $0.state = .cancelled; $0.speed = 0; $0.receivedBytes = 0; $0.segments = [] }
         scheduleSave()
@@ -554,6 +658,8 @@ final class DownloadStore: ObservableObject {
         let item = items[i]
         if let dl = downloaders.removeValue(forKey: id) { dl.stop() }
         if let p = videoProcesses.removeValue(forKey: id) { p.terminate() }
+        ytdlpUpdateWaiters[id] = nil
+        ytdlpUpdateTried.remove(id)
         try? FileManager.default.removeItem(at: item.partURL)
         if let cf = item.cookieFile { try? FileManager.default.removeItem(atPath: cf) }
         if deleteFile, let fp = item.finalPath, FileManager.default.fileExists(atPath: fp) {

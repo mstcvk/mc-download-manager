@@ -12,6 +12,7 @@ final class ToolInstaller: ObservableObject {
     @Published var installedVersion: String?
 
     static let ytDlpURL = URL(string: "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos")!
+    static let ytDlpLatestReleaseAPI = URL(string: "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest")!
 
     static var binDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -59,9 +60,34 @@ final class ToolInstaller: ObservableObject {
         }
     }
 
+    /// Reports the yt-dlp version in use and, when GitHub has a newer release, that release's version.
+    /// `newer` is nil when the copy in use is current or the lookup failed; `reachable` tells the two apart.
+    func checkForNewerYtDlp(custom: String,
+                            completion: @escaping (_ installed: String?, _ newer: String?, _ reachable: Bool) -> Void) {
+        DispatchQueue.global().async { [weak self] in
+            let installed = VideoDownloader.locateYtDlp(custom: custom).flatMap { self?.version(of: $0) }
+            var req = URLRequest(url: Self.ytDlpLatestReleaseAPI, timeoutInterval: 20)
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+            URLSession.shared.dataTask(with: req) { data, resp, _ in
+                var latest: String?
+                if let data, (resp as? HTTPURLResponse)?.statusCode == 200,
+                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    latest = obj["tag_name"] as? String
+                }
+                var newer: String?
+                if let latest, installed.map({ UpdateChecker.isNewer(latest, than: $0) }) ?? true { newer = latest }
+                DispatchQueue.main.async { completion(installed, newer, latest != nil) }
+            }.resume()
+        }
+    }
+
     /// Downloads yt-dlp_macos, verifies it runs, and installs it to Application Support.
     func installOrUpdateYtDlp(completion: @escaping (Result<String, Error>) -> Void) {
-        guard !busy else { return }
+        guard !busy else {
+            completion(.failure(DownloadFailure(message: String(localized: "Another tool install is in progress."))))
+            return
+        }
         busy = true
         progress = 0
         message = String(localized: "Downloading yt-dlp…")
